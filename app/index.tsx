@@ -14,7 +14,7 @@ export default function Index() {
       return;
     }
     if (user.role === 'ADMIN') {
-      router.replace('/admin/dashboard');
+      router.replace('/profile');
       return;
     }
     if (user.role === 'DELIVERY_PARTNER') {

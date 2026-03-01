@@ -51,7 +51,7 @@ export default function UsersListScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
-  title: { fontSize: 24, fontWeight: '900' },
+  title: { fontSize: 24, fontWeight: '900' , textAlign: 'center'},
   search: { marginTop: 10, marginBottom: 4, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
   loading: { marginTop: 10, color: COLORS.muted, fontWeight: '700' },
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 10, marginTop: 8 },
@@ -59,3 +59,4 @@ const styles = StyleSheet.create({
   more: { marginTop: 12, backgroundColor: '#fff', borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
   moreText: { fontWeight: '700', color: COLORS.text },
 });
+

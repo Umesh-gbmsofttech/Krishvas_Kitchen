@@ -6,8 +6,8 @@ import { COLORS } from '../src/config/appConfig';
 
 export default function CheckoutScreen() {
   const [addressLine, setAddressLine] = useState('');
-  const [apartmentOrSociety, setApartmentOrSociety] = useState('Palm Residency');
-  const [flatNumber, setFlatNumber] = useState('B-1204');
+  const [apartmentOrSociety, setApartmentOrSociety] = useState('');
+  const [flatNumber, setFlatNumber] = useState('');
   const [latitude, setLatitude] = useState(19.076);
   const [longitude, setLongitude] = useState(72.8777);
   const router = useRouter();
@@ -52,8 +52,9 @@ export default function CheckoutScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg, padding: 16 },
-  title: { fontSize: 26, fontWeight: '900', marginBottom: 12 },
+  title: { fontSize: 26, fontWeight: '900', marginBottom: 12 , textAlign: 'center'},
   input: { backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 10 },
   btn: { marginTop: 8, backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 13 },
   btnText: { color: '#fff', fontWeight: '800' },
 });
+

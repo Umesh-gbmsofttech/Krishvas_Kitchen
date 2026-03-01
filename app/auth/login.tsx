@@ -107,8 +107,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   skipText: { color: COLORS.accent, fontWeight: '800' },
-  title: { fontSize: 28, fontWeight: '900', color: COLORS.text },
-  subtitle: { color: COLORS.muted, marginTop: 8, marginBottom: 20 },
+  title: { fontSize: 28, fontWeight: '900', color: COLORS.text , textAlign: 'center'},
+  subtitle: { color: COLORS.muted, marginTop: 8, marginBottom: 20 , textAlign: 'center'},
   input: { backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 12 },
   passwordRow: {
     backgroundColor: '#fff',
@@ -124,3 +124,4 @@ const styles = StyleSheet.create({
   link: { marginTop: 14, color: COLORS.accent, fontWeight: '700' },
   error: { color: COLORS.danger, marginBottom: 8 },
 });
+

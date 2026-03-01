@@ -23,7 +23,8 @@ export default function ReportsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
-  title: { fontSize: 24, fontWeight: '900' },
+  title: { fontSize: 24, fontWeight: '900' , textAlign: 'center'},
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 10 },
   value: { fontSize: 28, fontWeight: '900', color: COLORS.accent },
 });
+

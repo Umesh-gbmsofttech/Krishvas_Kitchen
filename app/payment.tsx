@@ -50,9 +50,10 @@ export default function PaymentScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg, padding: 16 },
-  title: { fontSize: 26, fontWeight: '900', marginBottom: 14 },
+  title: { fontSize: 26, fontWeight: '900', marginBottom: 14 , textAlign: 'center'},
   option: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10 },
   active: { borderWidth: 2, borderColor: COLORS.accent },
   hint: { color: COLORS.muted, marginTop: 6 },
   btn: { marginTop: 14 },
 });
+

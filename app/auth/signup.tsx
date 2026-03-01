@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   skipText: { color: COLORS.accent, fontWeight: '800' },
-  title: { fontSize: 28, fontWeight: '900', marginBottom: 14, color: COLORS.text },
+  title: { fontSize: 28, fontWeight: '900', marginBottom: 14, color: COLORS.text , textAlign: 'center'},
   imagePicker: { alignItems: 'center', marginBottom: 12 },
   imagePreview: { width: 88, height: 88, borderRadius: 44, borderWidth: 2, borderColor: '#fff' },
   imageLabel: { marginTop: 6, color: COLORS.accent, fontWeight: '700' },
@@ -150,3 +150,4 @@ const styles = StyleSheet.create({
   toggleText: { color: COLORS.text, fontWeight: '700', fontSize: 12 },
   error: { color: COLORS.danger, marginBottom: 8 },
 });
+

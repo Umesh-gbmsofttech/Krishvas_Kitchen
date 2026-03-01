@@ -77,7 +77,7 @@ export default function OrdersScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
   content: { padding: 16, paddingBottom: 26 },
-  title: { fontSize: 24, fontWeight: '900' },
+  title: { fontSize: 24, fontWeight: '900' , textAlign: 'center'},
   search: { marginTop: 10, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11 },
   loading: { color: COLORS.muted, marginTop: 12, fontWeight: '700' },
   empty: { color: COLORS.muted, marginTop: 12 },
@@ -87,3 +87,4 @@ const styles = StyleSheet.create({
   more: { marginTop: 12, backgroundColor: '#fff', borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
   moreText: { fontWeight: '700', color: COLORS.text },
 });
+

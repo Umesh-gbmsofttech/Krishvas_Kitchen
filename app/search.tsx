@@ -75,7 +75,7 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
   content: { padding: 16, paddingBottom: 28 },
-  title: { fontSize: 24, fontWeight: '900' },
+  title: { fontSize: 24, fontWeight: '900' , textAlign: 'center'},
   search: { marginTop: 10, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11 },
   hint: { color: COLORS.muted, marginTop: 10, fontWeight: '600' },
   card: { backgroundColor: '#fff', borderRadius: 14, padding: 10, marginTop: 10, flexDirection: 'row', alignItems: 'center' },
@@ -85,4 +85,5 @@ const styles = StyleSheet.create({
   more: { marginTop: 12, backgroundColor: '#fff', borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
   moreText: { fontWeight: '700', color: COLORS.text },
 });
+
 

@@ -26,9 +26,10 @@ export default function DeliveryRegistrationScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg, padding: 16 },
-  title: { fontSize: 24, fontWeight: '900', marginBottom: 14 },
+  title: { fontSize: 24, fontWeight: '900', marginBottom: 14 , textAlign: 'center'},
   input: { backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 10 },
   btn: { backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 12 },
   btnText: { color: '#fff', fontWeight: '800' },
   status: { marginTop: 12, color: COLORS.success, fontWeight: '700' },
 });
+

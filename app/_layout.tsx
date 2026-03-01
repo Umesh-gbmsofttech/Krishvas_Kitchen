@@ -1,14 +1,22 @@
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { Image, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { Animated, Image, Linking, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
-import { CartProvider } from '../src/context/CartContext';
+import { CartProvider, useCart } from '../src/context/CartContext';
 import { NotificationProvider, useNotifications } from '../src/context/NotificationContext';
-import { BUILD_NUMBER, COLORS, RELEASES_API_URL, RELEASES_LATEST_URL } from '../src/config/appConfig';
+import { APP_NAME, BUILD_NUMBER, COLORS, RELEASES_API_URL, RELEASES_LATEST_URL } from '../src/config/appConfig';
 import { connectRealtime, disconnectRealtime } from '../src/services/realtime';
 import { resolveImageUrl } from '../src/utils/images';
+
+const textInputWithDefaults = TextInput as typeof TextInput & { defaultProps?: Record<string, unknown> };
+textInputWithDefaults.defaultProps = {
+  ...(textInputWithDefaults.defaultProps || {}),
+  placeholderTextColor: COLORS.placeholder,
+};
 
 const extractRunNumber = (value?: string | null) => {
   if (!value) return null;
@@ -30,7 +38,9 @@ const UpdatePrompt = () => {
         const res = await fetch(RELEASES_API_URL, { headers: { Accept: 'application/vnd.github+json' } });
         if (!res.ok) return;
         const data = await res.json();
-        const latest = extractRunNumber(data?.tag_name);
+        const releaseText = `${data?.name || ''} ${data?.tag_name || ''}`.toLowerCase();
+        if (!releaseText.includes(APP_NAME.toLowerCase())) return;
+        const latest = extractRunNumber(data?.tag_name) ?? extractRunNumber(data?.name);
         if (!mounted || !latest || !currentRun) return;
         if (latest > currentRun) {
           setLatestTag(`v${latest}`);
@@ -66,7 +76,7 @@ const UpdatePrompt = () => {
   );
 };
 
-const AuthGate = ({ children }: { children: React.ReactNode }) => {
+const AuthGate = ({ children }: { children: ReactNode }) => {
   const { user, token, ready } = useAuth();
   const { pushLocal } = useNotifications();
   const segments = useSegments();
@@ -83,8 +93,8 @@ const AuthGate = ({ children }: { children: React.ReactNode }) => {
       return;
     }
     if (token && isAuth) {
-      if (user?.role === 'ADMIN' && pathname !== '/admin/dashboard') {
-        router.replace('/admin/dashboard');
+      if (user?.role === 'ADMIN' && pathname !== '/profile') {
+        router.replace('/profile');
         return;
       }
       if (user?.role === 'DELIVERY_PARTNER' && pathname !== '/delivery/dashboard') {
@@ -132,7 +142,6 @@ const APP_ROUTES_WITH_SHELL = new Set([
   '/item-details',
   '/notifications',
   '/delivery-partner-registration',
-  '/admin/dashboard',
   '/admin/menu-scheduler',
   '/admin/carousel-management',
   '/admin/orders-management',
@@ -148,26 +157,50 @@ const APP_ROUTES_WITH_SHELL = new Set([
 
 const routeTitle = (pathname: string) => {
   if (pathname === '/home') return "Krishva's Kitchen";
+  if (pathname === '/cart') return 'Cart';
+  if (pathname === '/checkout') return 'Checkout';
+  if (pathname === '/payment') return 'Payment';
+  if (pathname === '/item-details') return 'Weekend Specials';
   if (pathname === '/todays-menu') return "Today's Menu";
   if (pathname === '/orders' || pathname === '/order-history') return 'Orders';
+  if (pathname === '/order-tracking') return 'Order Tracking';
   if (pathname === '/profile') return 'Profile';
   if (pathname === '/notifications') return 'Notifications';
-  if (pathname.startsWith('/admin/')) return 'Admin Panel';
-  if (pathname.startsWith('/delivery/')) return 'Delivery Partner';
+  if (pathname === '/admin/menu-scheduler') return 'Menu Scheduler';
+  if (pathname === '/admin/carousel-management') return 'Manage Carousel Images';
+  if (pathname === '/admin/orders-management') return 'Orders Management';
+  if (pathname === '/admin/users-list') return 'Users List';
+  if (pathname === '/admin/delivery-approvals') return 'Delivery Approvals';
+  if (pathname === '/admin/reports') return 'Reports';
+  if (pathname === '/delivery/dashboard') return 'Delivery Dashboard';
+  if (pathname === '/delivery/deliveries') return 'Delivery List';
+  if (pathname === '/delivery/map-view') return 'Map View';
+  if (pathname === '/delivery/earnings') return 'Earnings';
   if (pathname === '/search') return 'Search';
   return 'Krishva';
 };
 
-const AppShell = ({ children }: { children: React.ReactNode }) => {
+const AppShell = ({ children }: { children: ReactNode }) => {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useAuth();
+  const { items } = useCart();
 
   const showShell = APP_ROUTES_WITH_SHELL.has(pathname || '');
   const profileUri = resolveImageUrl(user?.profileImageUrl);
+  const cartCount = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items]);
+  const cartScale = useRef(new Animated.Value(1)).current;
   const topHeight = insets.top + 56;
   const bottomHeight = insets.bottom + 62;
+
+  useEffect(() => {
+    if (!showShell) return;
+    Animated.sequence([
+      Animated.timing(cartScale, { toValue: 1.18, duration: 120, useNativeDriver: true }),
+      Animated.timing(cartScale, { toValue: 1, duration: 120, useNativeDriver: true }),
+    ]).start();
+  }, [cartCount, cartScale, showShell]);
 
   return (
     <View style={styles.shellContainer}>
@@ -175,18 +208,28 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
 
       {showShell ? (
         <View style={[styles.headerBar, { paddingTop: insets.top }]}>
-          <Pressable style={styles.headerIcon} onPress={() => router.push('/search')}>
+          <Pressable style={[styles.headerIcon, styles.headerLeft]} onPress={() => router.push('/search')}>
             <Text style={styles.headerIconText}>Search</Text>
           </Pressable>
-          <Text style={styles.headerTitle} numberOfLines={1}>{routeTitle(pathname || '')}</Text>
-          <Pressable style={styles.headerIcon} onPress={() => router.push('/profile')}>
-            <Image source={profileUri ? { uri: profileUri } : require('../assets/images/mutton.jpg')} style={styles.headerAvatar} />
-          </Pressable>
+          <View pointerEvents="none" style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle} numberOfLines={1}>{routeTitle(pathname || '')}</Text>
+          </View>
+          <View style={styles.headerRightGroup}>
+            <Animated.View style={{ transform: [{ scale: cartScale }] }}>
+              <Pressable style={styles.headerMiniIcon} onPress={() => router.push('/cart')}>
+                <Ionicons name="cart-outline" size={18} color="#fff" />
+                {cartCount > 0 ? <View style={styles.headerBadge}><Text style={styles.headerBadgeTxt}>{cartCount}</Text></View> : null}
+              </Pressable>
+            </Animated.View>
+            <Pressable style={styles.headerMiniIcon} onPress={() => router.push('/profile')}>
+              <Image source={profileUri ? { uri: profileUri } : require('../assets/images/mutton.jpg')} style={styles.headerAvatar} />
+            </Pressable>
+          </View>
         </View>
       ) : null}
 
       {showShell ? (
-        <View style={[styles.bottomNav, { paddingBottom: insets.bottom }]}>
+        <View style={[styles.bottomNav, { bottom: 10 + insets.bottom }]}>
           <Pressable style={styles.navItem} onPress={() => router.push('/home')}>
             <Text style={[styles.navText, pathname === '/home' && styles.navTextActive]}>Home</Text>
           </Pressable>
@@ -233,7 +276,6 @@ export default function RootLayout() {
                 <Stack.Screen name="auth/login" />
                 <Stack.Screen name="auth/signup" />
                 <Stack.Screen name="admin/login" />
-                <Stack.Screen name="admin/dashboard" />
                 <Stack.Screen name="admin/menu-scheduler" />
                 <Stack.Screen name="admin/carousel-management" />
                 <Stack.Screen name="admin/orders-management" />
@@ -256,8 +298,8 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', padding: 24 },
   card: { width: '100%', backgroundColor: COLORS.card, borderRadius: 18, padding: 20, maxWidth: 380 },
-  title: { fontSize: 20, fontWeight: '800', color: COLORS.text },
-  subtitle: { marginTop: 6, color: COLORS.muted, marginBottom: 16 },
+  title: { fontSize: 20, fontWeight: '800', color: COLORS.text, textAlign: 'center' },
+  subtitle: { marginTop: 6, color: COLORS.muted, marginBottom: 16, textAlign: 'center' },
   actions: { flexDirection: 'row', gap: 12 },
   btn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
   light: { backgroundColor: '#ECECEC' },
@@ -274,19 +316,50 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accent,
     borderBottomLeftRadius: 18,
     borderBottomRightRadius: 18,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingHorizontal: 12,
   },
   headerIcon: {
     width: 56,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+  },
+  headerLeft: { left: 12 },
+  headerRightGroup: {
+    position: 'absolute',
+    right: 8,
+    top: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  headerMiniIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerIconText: { color: '#fff', fontWeight: '700', fontSize: 12 },
-  headerTitle: { color: '#fff', fontWeight: '800', fontSize: 18, maxWidth: '55%', textAlign: 'center' },
+  headerTitleWrap: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { color: '#fff', fontWeight: '800', fontSize: 18, textAlign: 'center' },
   headerAvatar: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, borderColor: '#fff' },
+  headerBadge: {
+    position: 'absolute',
+    top: 5,
+    right: 4,
+    backgroundColor: '#fff',
+    borderRadius: 9,
+    minWidth: 16,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+  },
+  headerBadgeTxt: { color: COLORS.accent, fontSize: 10, fontWeight: '800' },
   bottomNav: {
     position: 'absolute',
     left: 10,
@@ -294,16 +367,18 @@ const styles = StyleSheet.create({
     bottom: 10,
     backgroundColor: '#fff',
     borderRadius: 18,
+    minHeight: 54,
     paddingVertical: 10,
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
+    gap: 14,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
   },
-  navItem: { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12 },
+  navItem: { minWidth: 72, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12, alignItems: 'center' },
   navText: { color: COLORS.muted, fontWeight: '700' },
   navTextActive: { color: COLORS.accent },
 });

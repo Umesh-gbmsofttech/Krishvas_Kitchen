@@ -76,7 +76,7 @@ export default function OrderTrackingScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
-  title: { fontSize: 24, fontWeight: '900' },
+  title: { fontSize: 24, fontWeight: '900' , textAlign: 'center'},
   status: { marginTop: 4, color: COLORS.accent, fontWeight: '700' },
   map: { height: 260, borderRadius: 16, marginTop: 12 },
   section: { marginTop: 14, fontSize: 18, fontWeight: '800' },
@@ -84,3 +84,4 @@ const styles = StyleSheet.create({
   updateTitle: { fontWeight: '700' },
   updateMeta: { color: COLORS.muted, marginTop: 4, fontSize: 12 },
 });
+

@@ -34,7 +34,7 @@ export default function DeliveryApprovalsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
-  title: { fontSize: 24, fontWeight: '900' },
+  title: { fontSize: 24, fontWeight: '900' , textAlign: 'center'},
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 10, marginTop: 8 },
   bold: { fontWeight: '800' },
   row: { flexDirection: 'row', gap: 8, marginTop: 8 },
@@ -42,3 +42,4 @@ const styles = StyleSheet.create({
   reject: { backgroundColor: COLORS.danger, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
   white: { color: '#fff', fontWeight: '700' },
 });
+

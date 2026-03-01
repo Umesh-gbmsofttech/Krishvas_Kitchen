@@ -4,6 +4,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { api } from '../../src/services/api';
 import { COLORS } from '../../src/config/appConfig';
 import { resolveImageUrl } from '../../src/utils/images';
+import { AnimatedHeading } from '../../src/components/AnimatedHeading';
 
 export default function CarouselManagementScreen() {
   const [heroBanners, setHeroBanners] = useState<any[]>([]);
@@ -96,7 +97,7 @@ export default function CarouselManagementScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: 16 }}>
-      <Text style={styles.title}>Manage Carousel Images</Text>
+      <AnimatedHeading text="Manage Carousel Images" />
       <View style={styles.card}>
         <TextInput value={bannerTitle} onChangeText={setBannerTitle} style={styles.input} placeholder="Banner title" />
         <TextInput value={bannerActionLabel} onChangeText={setBannerActionLabel} style={styles.input} placeholder="Action label (optional)" />
@@ -134,7 +135,7 @@ export default function CarouselManagementScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
-  title: { fontSize: 22, fontWeight: '900' },
+  title: { fontSize: 22, fontWeight: '900' , textAlign: 'center'},
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 10, marginTop: 8 },
   input: { backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 8, borderWidth: 1, borderColor: '#eee' },
   pickBtn: { backgroundColor: '#111', borderRadius: 10, alignItems: 'center', paddingVertical: 10, marginTop: 8 },
@@ -152,4 +153,5 @@ const styles = StyleSheet.create({
   removeBtn: { marginTop: 8, backgroundColor: COLORS.danger, borderRadius: 8, alignItems: 'center', paddingVertical: 8 },
   removeBtnText: { color: '#fff', fontWeight: '700' },
 });
+
 

@@ -51,8 +51,9 @@ export default function DeliveryMapViewScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg, padding: 16 },
-  title: { fontSize: 20, fontWeight: '900', marginBottom: 8 },
+  title: { fontSize: 20, fontWeight: '900', marginBottom: 8 , textAlign: 'center'},
   map: { flex: 1, borderRadius: 14 },
   btn: { marginTop: 10, backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 12 },
   btnText: { color: '#fff', fontWeight: '800' },
 });
+

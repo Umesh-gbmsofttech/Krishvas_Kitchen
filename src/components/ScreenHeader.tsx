@@ -13,7 +13,7 @@ export const ScreenHeader = ({ title, rightText, onRightPress }: { title: string
 );
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 30 },
   title: { fontSize: 24, fontWeight: '800', color: COLORS.text },
   right: { color: COLORS.accent, fontWeight: '700' },
 });

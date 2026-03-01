@@ -19,6 +19,7 @@ const getBaseUrl = () => {
 };
 
 export const API_BASE_URL = getBaseUrl();
+export const APP_NAME = Constants.expoConfig?.name || 'KrishvasKitchen';
 export const GITHUB_REPO = extra.githubRepo || 'Umesh-gbmsofttech/Krishvas_Kitchen';
 export const BUILD_NUMBER = extra.buildNumber || '1';
 export const RELEASES_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
@@ -35,5 +36,6 @@ export const COLORS = {
   accentSoft: '#FFE3D6',
   success: '#2E7D32',
   danger: '#D32F2F',
-  chip: '#F0F0F0'
+  chip: '#F0F0F0',
+  placeholder: '#97A1AF'
 };

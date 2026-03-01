@@ -32,6 +32,7 @@ export const api = {
   login: (payload: any) => http.post('/api/auth/login', payload).then((r) => r.data),
 
   myProfile: () => http.get('/api/profile/me').then((r) => r.data),
+  updateProfile: (payload: any) => http.put('/api/profile/me', payload).then((r) => r.data),
 
   dailyMenu: () => http.get('/api/menus/daily').then((r) => r.data),
   banners: () => http.get('/api/menus/banners').then((r) => r.data),

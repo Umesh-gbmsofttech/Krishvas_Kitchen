@@ -32,9 +32,10 @@ export default function DeliveryDashboardScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
-  title: { fontSize: 24, fontWeight: '900' },
+  title: { fontSize: 24, fontWeight: '900' , textAlign: 'center'},
   row: { flexDirection: 'row', gap: 10, marginTop: 10 },
   card: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 12 },
   value: { fontSize: 24, fontWeight: '900', color: COLORS.accent },
   nav: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 8 },
 });
+
