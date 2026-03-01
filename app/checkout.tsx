@@ -1,8 +1,9 @@
 import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '../src/config/appConfig';
+import { AppTextInput as TextInput } from '../src/components/AppTextInput';
 
 export default function CheckoutScreen() {
   const [addressLine, setAddressLine] = useState('');
@@ -10,7 +11,41 @@ export default function CheckoutScreen() {
   const [flatNumber, setFlatNumber] = useState('');
   const [latitude, setLatitude] = useState(19.076);
   const [longitude, setLongitude] = useState(72.8777);
+  const [fetchingLiveLocation, setFetchingLiveLocation] = useState(false);
   const router = useRouter();
+
+  const resolveLiveCoords = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return { latitude, longitude };
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      return { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+    } catch {
+      return { latitude, longitude };
+    }
+  };
+
+  const goToPayment = async () => {
+    if (fetchingLiveLocation) return;
+    setFetchingLiveLocation(true);
+    try {
+      const coords = await resolveLiveCoords();
+      setLatitude(coords.latitude);
+      setLongitude(coords.longitude);
+      router.push({
+        pathname: '/payment',
+        params: {
+          addressLine,
+          apartmentOrSociety,
+          flatNumber,
+          latitude: String(coords.latitude),
+          longitude: String(coords.longitude),
+        },
+      });
+    } finally {
+      setFetchingLiveLocation(false);
+    }
+  };
 
   useEffect(() => {
     const fetchLocation = async () => {
@@ -37,14 +72,10 @@ export default function CheckoutScreen() {
 
       <Pressable
         style={styles.btn}
-        onPress={() =>
-          router.push({
-            pathname: '/payment',
-            params: { addressLine, apartmentOrSociety, flatNumber, latitude: String(latitude), longitude: String(longitude) },
-          })
-        }
+        onPress={goToPayment}
+        disabled={fetchingLiveLocation}
       >
-        <Text style={styles.btnText}>Continue to Payment</Text>
+        <Text style={styles.btnText}>{fetchingLiveLocation ? 'Fetching live location...' : 'Continue to Payment'}</Text>
       </Pressable>
     </View>
   );

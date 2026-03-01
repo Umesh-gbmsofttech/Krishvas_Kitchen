@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { api } from '../src/services/api';
 import { COLORS } from '../src/config/appConfig';
+import { AppTextInput as TextInput } from '../src/components/AppTextInput';
 
 export default function DeliveryRegistrationScreen() {
   const [vehicleType, setVehicleType] = useState('Bike');

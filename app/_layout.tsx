@@ -1,7 +1,7 @@
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Animated, Image, Linking, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Image, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,12 +11,6 @@ import { NotificationProvider, useNotifications } from '../src/context/Notificat
 import { APP_NAME, BUILD_NUMBER, COLORS, RELEASES_API_URL, RELEASES_LATEST_URL } from '../src/config/appConfig';
 import { connectRealtime, disconnectRealtime } from '../src/services/realtime';
 import { resolveImageUrl } from '../src/utils/images';
-
-const textInputWithDefaults = TextInput as typeof TextInput & { defaultProps?: Record<string, unknown> };
-textInputWithDefaults.defaultProps = {
-  ...(textInputWithDefaults.defaultProps || {}),
-  placeholderTextColor: COLORS.placeholder,
-};
 
 const extractRunNumber = (value?: string | null) => {
   if (!value) return null;

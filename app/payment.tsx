@@ -1,3 +1,4 @@
+import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -13,16 +14,35 @@ export default function PaymentScreen() {
   const { items, clearCart } = useCart();
   const router = useRouter();
 
+  const parseCoord = (value: string | undefined, fallback: number) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const resolveLiveCoords = async () => {
+    const fallbackLat = parseCoord(params.latitude, 19.076);
+    const fallbackLng = parseCoord(params.longitude, 72.8777);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return { latitude: fallbackLat, longitude: fallbackLng };
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      return { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+    } catch {
+      return { latitude: fallbackLat, longitude: fallbackLng };
+    }
+  };
+
   const placeOrder = async () => {
     if (placing) return;
     setPlacing(true);
     try {
+      const liveCoords = await resolveLiveCoords();
       const order = await api.placeOrder({
         addressLine: params.addressLine,
         apartmentOrSociety: params.apartmentOrSociety,
         flatNumber: params.flatNumber,
-        latitude: Number(params.latitude),
-        longitude: Number(params.longitude),
+        latitude: liveCoords.latitude,
+        longitude: liveCoords.longitude,
         paymentMethod: method,
         notes: `Razorpay key: ${RAZORPAY_KEY}, Stripe key: ${STRIPE_KEY}`,
         items: items.map((i) => ({ ...i, unitPrice: i.unitPrice })),

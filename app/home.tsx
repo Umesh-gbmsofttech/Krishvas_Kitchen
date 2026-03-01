@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../src/services/api';
@@ -12,6 +12,7 @@ import { hasMore, paginate } from '../src/utils/pagination';
 import { LoadingText } from '../src/components/LoadingText';
 import { BannerCarousel } from '../src/components/BannerCarousel';
 import { AnimatedHeading } from '../src/components/AnimatedHeading';
+import { AppTextInput as TextInput } from '../src/components/AppTextInput';
 
 export default function HomeScreen() {
   const [menu, setMenu] = useState<any>(null);

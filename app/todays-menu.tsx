@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS } from '../src/config/appConfig';
 import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
@@ -7,6 +7,7 @@ import { api } from '../src/services/api';
 import { hasMore, paginate } from '../src/utils/pagination';
 import { resolveImageUrl } from '../src/utils/images';
 import { LoadingText } from '../src/components/LoadingText';
+import { AppTextInput as TextInput } from '../src/components/AppTextInput';
 
 export default function TodaysMenuScreen() {
   const [menu, setMenu] = useState<any>(null);

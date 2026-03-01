@@ -1,13 +1,14 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Image, PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../src/config/appConfig';
 import { useAuth } from '../../src/context/AuthContext';
 import { api } from '../../src/services/api';
 import { LoadingButton } from '../../src/components/LoadingButton';
+import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 
 export default function SignupScreen() {
   const { signup, refreshProfile } = useAuth();

@@ -1,6 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 import { api } from '../../src/services/api';
 import { COLORS } from '../../src/config/appConfig';
 import { resolveImageUrl } from '../../src/utils/images';

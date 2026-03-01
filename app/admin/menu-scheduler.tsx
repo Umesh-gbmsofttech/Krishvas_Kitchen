@@ -1,10 +1,11 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api } from '../../src/services/api';
 import { COLORS } from '../../src/config/appConfig';
 import { resolveImageUrl } from '../../src/utils/images';
 import { AnimatedHeading } from '../../src/components/AnimatedHeading';
+import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 
 type DraftItem = {
   name: string;

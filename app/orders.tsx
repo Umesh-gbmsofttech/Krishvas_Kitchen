@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { COLORS } from '../src/config/appConfig';
 import { LoadingText } from '../src/components/LoadingText';
 import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
 import { api } from '../src/services/api';
 import { hasMore, paginate } from '../src/utils/pagination';
 import { useAuth } from '../src/context/AuthContext';
+import { AppTextInput as TextInput } from '../src/components/AppTextInput';
 
 export default function OrdersScreen() {
   const [orders, setOrders] = useState<any[]>([]);

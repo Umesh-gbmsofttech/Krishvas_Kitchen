@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api } from '../../src/services/api';
 import { COLORS } from '../../src/config/appConfig';
 import { LoadingText } from '../../src/components/LoadingText';
 import { useDebouncedValue } from '../../src/hooks/useDebouncedValue';
 import { hasMore, paginate } from '../../src/utils/pagination';
+import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 
 export default function UsersListScreen() {
   const [users, setUsers] = useState<any[]>([]);

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useRouter } from 'expo-router';
-import { PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../src/config/appConfig';
 import { useAuth } from '../../src/context/AuthContext';
 import { LoadingButton } from '../../src/components/LoadingButton';
+import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 
 export default function LoginScreen() {
   const { login } = useAuth();
