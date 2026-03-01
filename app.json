@@ -31,6 +31,7 @@
       "expo-router",
       "expo-notifications",
       "expo-location",
+      "expo-image-picker",
       [
         "expo-splash-screen",
         {

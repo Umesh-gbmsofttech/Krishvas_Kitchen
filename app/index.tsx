@@ -10,7 +10,7 @@ export default function Index() {
   useEffect(() => {
     if (!ready) return;
     if (!user) {
-      router.replace('/auth/login');
+      router.replace('/home');
       return;
     }
     if (user.role === 'ADMIN') {

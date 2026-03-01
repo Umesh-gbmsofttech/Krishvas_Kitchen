@@ -6,7 +6,19 @@ const extra = (Constants.expoConfig?.extra || {}) as {
   buildNumber?: string;
 };
 
-export const API_BASE_URL = extra.apiBaseUrl || 'https://krishvas-kitchen-server.onrender.com';
+const getBaseUrl = () => {
+  if (__DEV__) {
+    const hostUri = Constants.expoConfig?.hostUri;
+    const lanIp = hostUri?.split(':')[0];
+    if (lanIp) return `http://${lanIp}:8080`;
+    return 'http://localhost:8080';
+  }
+
+  if (extra.apiBaseUrl) return extra.apiBaseUrl;
+  return 'https://krishvas-kitchen-server.onrender.com';
+};
+
+export const API_BASE_URL = getBaseUrl();
 export const GITHUB_REPO = extra.githubRepo || 'Umesh-gbmsofttech/Krishvas_Kitchen';
 export const BUILD_NUMBER = extra.buildNumber || '1';
 export const RELEASES_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;

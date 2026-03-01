@@ -6,6 +6,19 @@ export const http = axios.create({
   timeout: 15000,
 });
 
+console.log('Using API Base URL:', API_BASE_URL);
+
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const method = error?.config?.method?.toUpperCase?.() || 'REQUEST';
+    const url = error?.config?.url || 'unknown-url';
+    const status = error?.response?.status || 'NO_STATUS';
+    console.log(`API Error: ${method} ${url} -> ${status}`);
+    return Promise.reject(error);
+  }
+);
+
 export const setAuthToken = (token?: string | null) => {
   if (token) {
     http.defaults.headers.common.Authorization = `Bearer ${token}`;
@@ -17,6 +30,8 @@ export const setAuthToken = (token?: string | null) => {
 export const api = {
   register: (payload: any) => http.post('/api/auth/register', payload).then((r) => r.data),
   login: (payload: any) => http.post('/api/auth/login', payload).then((r) => r.data),
+
+  myProfile: () => http.get('/api/profile/me').then((r) => r.data),
 
   dailyMenu: () => http.get('/api/menus/daily').then((r) => r.data),
   banners: () => http.get('/api/menus/banners').then((r) => r.data),
@@ -51,5 +66,35 @@ export const api = {
 
   adminDashboard: () => http.get('/api/admin/dashboard').then((r) => r.data),
   adminUsers: () => http.get('/api/admin/users').then((r) => r.data),
+  adminBanners: () => http.get('/api/admin/banners').then((r) => r.data),
   createBanner: (payload: any) => http.post('/api/admin/banners', payload).then((r) => r.data),
+  deleteBanner: (id: number) => http.delete(`/api/admin/banners/${id}`).then((r) => r.data),
+
+  uploadImage: async (file: { uri: string; name?: string; type?: string }, referenceType = 'MENU_ITEM', referenceId = 0) => {
+    const form = new FormData();
+    form.append('file', {
+      uri: file.uri,
+      name: file.name || `menu-${Date.now()}.jpg`,
+      type: file.type || 'image/jpeg',
+    } as any);
+    form.append('referenceType', referenceType);
+    form.append('referenceId', String(referenceId));
+    const response = await http.post('/api/images', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  uploadProfileImage: async (file: { uri: string; name?: string; type?: string }) => {
+    const form = new FormData();
+    form.append('file', {
+      uri: file.uri,
+      name: file.name || `profile-${Date.now()}.jpg`,
+      type: file.type || 'image/jpeg',
+    } as any);
+    const response = await http.post('/api/profile/image', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
 };

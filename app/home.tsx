@@ -5,56 +5,74 @@ import { api } from '../src/services/api';
 import { COLORS } from '../src/config/appConfig';
 import { useCart } from '../src/context/CartContext';
 import { useNotifications } from '../src/context/NotificationContext';
+import { resolveImageUrl } from '../src/utils/images';
+import { useAuth } from '../src/context/AuthContext';
+import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
+import { hasMore, paginate } from '../src/utils/pagination';
+import { LoadingText } from '../src/components/LoadingText';
+import { BannerCarousel } from '../src/components/BannerCarousel';
 
 export default function HomeScreen() {
   const [menu, setMenu] = useState<any>(null);
   const [banners, setBanners] = useState<any[]>([]);
   const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
   const [activeFilter, setActiveFilter] = useState('ALL');
+  const debouncedQuery = useDebouncedValue(query, 350);
   const { addItem } = useCart();
   const { unread } = useNotifications();
+  const { user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     const load = async () => {
-      const [daily, hero] = await Promise.all([api.dailyMenu(), api.banners()]);
-      setMenu(daily);
-      setBanners(hero);
+      setLoading(true);
+      try {
+        const [daily, hero] = await Promise.all([api.dailyMenu(), api.banners()]);
+        setMenu(daily);
+        setBanners(hero);
+      } finally {
+        setLoading(false);
+      }
     };
-    load().catch(() => {});
+    load().catch(() => setLoading(false));
   }, []);
 
   const filters = useMemo<string[]>(
     () => ['ALL', ...Array.from(new Set<string>((menu?.items || []).map((i: any) => String(i.category))))],
     [menu]
   );
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQuery, activeFilter]);
+
   const items = useMemo(() => {
-    const q = query.toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     return (menu?.items || []).filter((i: any) => {
       const filterOk = activeFilter === 'ALL' || i.category === activeFilter;
-      const searchOk = i.name.toLowerCase().includes(q);
+      const searchOk = !q || i.name.toLowerCase().includes(q);
       return filterOk && searchOk;
     });
-  }, [menu, query, activeFilter]);
+  }, [menu, debouncedQuery, activeFilter]);
+  const visibleItems = useMemo(() => paginate(items, page), [items, page]);
+
+  const profileUri = resolveImageUrl(user?.profileImageUrl);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.topRow}>
+        <Pressable style={styles.avatarButton} onPress={() => router.push('/profile')}>
+          <Image source={profileUri ? { uri: profileUri } : require('../assets/images/mutton.jpg')} style={styles.avatar} />
+        </Pressable>
         <TextInput value={query} onChangeText={setQuery} placeholder="Search" style={styles.search} />
         <Pressable style={styles.notif} onPress={() => router.push('/notifications')}>
-          <Text style={{ fontSize: 18 }}>??</Text>
+          <Text style={{ fontSize: 18 }}>🔍</Text>
           {unread > 0 ? <View style={styles.badge}><Text style={styles.badgeTxt}>{unread}</Text></View> : null}
         </Pressable>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-        {(banners.length ? banners : [{ id: 1, title: 'Chef Specials', imageUrl: 'mutton.jpg' }]).map((b: any) => (
-          <View key={b.id} style={styles.bannerCard}>
-            <Image source={require('../assets/images/mutton.jpg')} style={styles.bannerImg} />
-            <Text style={styles.bannerTitle}>{b.title}</Text>
-          </View>
-        ))}
-      </ScrollView>
+      <BannerCarousel banners={banners.length ? banners : [{ id: 1, title: 'Chef Specials', actionLabel: 'Fresh Daily', imageUrl: 'mutton.jpg' }]} />
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
         {filters.map((filter) => (
@@ -65,9 +83,13 @@ export default function HomeScreen() {
       </ScrollView>
 
       <Text style={styles.heading}>{menu?.title || 'Daily Menu'}</Text>
-      {items.map((item: any) => (
+      {loading ? <LoadingText base="Loading" style={styles.loading} /> : null}
+      {visibleItems.map((item: any) => (
         <Pressable key={item.id} style={styles.itemCard} onPress={() => router.push({ pathname: '/item-details', params: { item: JSON.stringify(item) } })}>
-          <Image source={require('../assets/images/mutton.jpg')} style={styles.itemImage} />
+          <Image
+            source={resolveImageUrl(item.imageUrl) ? { uri: resolveImageUrl(item.imageUrl)! } : require('../assets/images/mutton.jpg')}
+            style={styles.itemImage}
+          />
           <View style={{ flex: 1 }}>
             <Text style={styles.itemName}>{item.name}</Text>
             <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
@@ -81,6 +103,11 @@ export default function HomeScreen() {
           </Pressable>
         </Pressable>
       ))}
+      {!loading && hasMore(items, page) ? (
+        <Pressable style={styles.more} onPress={() => setPage((p) => p + 1)}>
+          <Text style={styles.moreText}>Load More</Text>
+        </Pressable>
+      ) : null}
 
       <Pressable style={styles.fab} onPress={() => router.push('/cart')}><Text style={{ color: '#fff', fontWeight: '800' }}>Cart</Text></Pressable>
     </ScrollView>
@@ -90,14 +117,21 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
   content: { padding: 16, paddingBottom: 40 },
-  topRow: { flexDirection: 'row', marginBottom: 12 },
+  topRow: { flexDirection: 'row', marginBottom: 12, alignItems: 'center' },
+  avatarButton: { marginRight: 8 },
+  avatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: '#fff' },
   search: { flex: 1, backgroundColor: '#fff', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11 },
-  notif: { width: 50, marginLeft: 8, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  notif: {
+    width: 50,
+    marginLeft: 8,
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 11,
+  },
   badge: { position: 'absolute', top: 6, right: 6, backgroundColor: COLORS.accent, borderRadius: 8, minWidth: 16, paddingHorizontal: 4, alignItems: 'center' },
   badgeTxt: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  bannerCard: { width: 280, marginRight: 12, borderRadius: 20, overflow: 'hidden', backgroundColor: '#fff' },
-  bannerImg: { width: '100%', height: 150 },
-  bannerTitle: { fontSize: 18, fontWeight: '800', padding: 10 },
   chip: { backgroundColor: COLORS.chip, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8 },
   chipActive: { backgroundColor: COLORS.accentSoft },
   chipText: { fontWeight: '600', color: COLORS.text },
@@ -109,5 +143,8 @@ const styles = StyleSheet.create({
   itemDesc: { color: COLORS.muted, fontSize: 12, marginVertical: 3 },
   itemPrice: { fontWeight: '800', color: COLORS.accent },
   addBtn: { backgroundColor: COLORS.accent, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  loading: { color: COLORS.muted, fontWeight: '700', marginBottom: 10 },
+  more: { backgroundColor: '#fff', borderRadius: 10, alignItems: 'center', paddingVertical: 10, marginBottom: 10 },
+  moreText: { color: COLORS.text, fontWeight: '700' },
   fab: { marginTop: 8, backgroundColor: COLORS.text, alignItems: 'center', borderRadius: 12, paddingVertical: 14 },
 });

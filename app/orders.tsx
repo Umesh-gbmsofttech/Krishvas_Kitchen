@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
-import { api } from '../src/services/api';
 import { COLORS } from '../src/config/appConfig';
-import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
-import { hasMore, paginate } from '../src/utils/pagination';
 import { LoadingText } from '../src/components/LoadingText';
+import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
+import { api } from '../src/services/api';
+import { hasMore, paginate } from '../src/utils/pagination';
 import { useAuth } from '../src/context/AuthContext';
 
-export default function OrderHistoryScreen() {
+export default function OrdersScreen() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState('');
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const debouncedQuery = useDebouncedValue(query, 350);
+  const debouncedSearch = useDebouncedValue(search, 350);
   const { token } = useAuth();
   const router = useRouter();
 
@@ -23,25 +23,41 @@ export default function OrderHistoryScreen() {
       setLoading(false);
       return;
     }
-    api.myOrders().then((res) => setOrders(res || [])).catch(() => {}).finally(() => setLoading(false));
+    const load = async () => {
+      setLoading(true);
+      try {
+        const list = await api.myOrders();
+        setOrders(list || []);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load().catch(() => setLoading(false));
   }, [token]);
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedQuery]);
+  }, [debouncedSearch]);
 
   const filtered = useMemo(() => {
-    const q = debouncedQuery.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     if (!q) return orders;
     return orders.filter((o) => String(o.orderId || '').toLowerCase().includes(q) || String(o.status || '').toLowerCase().includes(q));
-  }, [orders, debouncedQuery]);
+  }, [orders, debouncedSearch]);
+
   const visible = useMemo(() => paginate(filtered, page), [filtered, page]);
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={{ padding: 16 }}>
-      <Text style={styles.title}>Order History</Text>
-      <TextInput value={query} onChangeText={setQuery} placeholder="Search order history" style={styles.search} />
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <Text style={styles.title}>Orders</Text>
+      <TextInput
+        value={search}
+        onChangeText={setSearch}
+        placeholder="Search by order id or status"
+        style={styles.search}
+      />
       {loading ? <LoadingText base="Loading" style={styles.loading} /> : null}
+      {!loading && !filtered.length ? <Text style={styles.empty}>No orders found.</Text> : null}
       {visible.map((order) => (
         <Pressable key={order.id} style={styles.card} onPress={() => router.push({ pathname: '/order-tracking', params: { orderId: order.orderId } })}>
           <Text style={styles.id}>{order.orderId}</Text>
@@ -60,9 +76,11 @@ export default function OrderHistoryScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
+  content: { padding: 16, paddingBottom: 26 },
   title: { fontSize: 24, fontWeight: '900' },
-  search: { marginTop: 10, marginBottom: 4, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
-  loading: { marginTop: 10, color: COLORS.muted, fontWeight: '700' },
+  search: { marginTop: 10, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11 },
+  loading: { color: COLORS.muted, marginTop: 12, fontWeight: '700' },
+  empty: { color: COLORS.muted, marginTop: 12 },
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 10 },
   id: { fontWeight: '800' },
   amount: { marginTop: 5, color: COLORS.accent, fontWeight: '700' },

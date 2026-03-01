@@ -6,7 +6,7 @@ export default function SplashScreenPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const timer = setTimeout(() => router.replace('/index'), 1800);
+    const timer = setTimeout(() => router.replace('/'), 1800);
     return () => clearTimeout(timer);
   }, [router]);
 

@@ -1,15 +1,31 @@
-import * as Notifications from 'expo-notifications';
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import Constants from 'expo-constants';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
+import { useAuth } from './AuthContext';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: true,
-  }),
-});
+const isExpoGo =
+  Constants.executionEnvironment === 'storeClient' || Constants.appOwnership === 'expo';
+let notificationsModule: any = null;
+let notificationsConfigured = false;
+
+const getNotificationsModule = async () => {
+  if (isExpoGo) return null;
+  if (!notificationsModule) {
+    notificationsModule = await import('expo-notifications');
+  }
+  if (!notificationsConfigured) {
+    notificationsModule.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: false,
+        shouldSetBadge: true,
+      }),
+    });
+    notificationsConfigured = true;
+  }
+  return notificationsModule;
+};
 
 type NotificationContextType = {
   items: any[];
@@ -21,10 +37,16 @@ type NotificationContextType = {
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export const NotificationProvider = ({ children }: { children: React.ReactNode }) => {
+  const { token } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [unread, setUnread] = useState(0);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
+    if (!token) {
+      setItems([]);
+      setUnread(0);
+      return;
+    }
     try {
       const [list, count] = await Promise.all([api.notifications(), api.unreadCount()]);
       setItems(list || []);
@@ -32,20 +54,23 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     } catch {
       // ignore until auth ready
     }
-  };
+  }, [token]);
 
-  const pushLocal = async (title: string, body: string) => {
+  const pushLocal = useCallback(async (title: string, body: string) => {
+    const Notifications = await getNotificationsModule();
+    if (!Notifications) return;
     await Notifications.scheduleNotificationAsync({
       content: { title, body },
       trigger: null,
     });
-  };
-
-  useEffect(() => {
-    refresh();
   }, []);
 
-  const value = useMemo(() => ({ items, unread, refresh, pushLocal }), [items, unread]);
+  useEffect(() => {
+    getNotificationsModule().catch(() => {});
+    refresh().catch(() => {});
+  }, [refresh]);
+
+  const value = useMemo(() => ({ items, unread, refresh, pushLocal }), [items, unread, refresh, pushLocal]);
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
 };

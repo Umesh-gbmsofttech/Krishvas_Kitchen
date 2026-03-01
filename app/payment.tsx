@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS, RAZORPAY_KEY, STRIPE_KEY } from '../src/config/appConfig';
 import { useCart } from '../src/context/CartContext';
 import { api } from '../src/services/api';
+import { LoadingButton } from '../src/components/LoadingButton';
 
 export default function PaymentScreen() {
   const params = useLocalSearchParams<{ addressLine: string; apartmentOrSociety: string; flatNumber: string; latitude: string; longitude: string }>();
@@ -13,6 +14,7 @@ export default function PaymentScreen() {
   const router = useRouter();
 
   const placeOrder = async () => {
+    if (placing) return;
     setPlacing(true);
     try {
       const order = await api.placeOrder({
@@ -41,7 +43,7 @@ export default function PaymentScreen() {
       <Pressable onPress={() => setMethod('COD')} style={[styles.option, method === 'COD' && styles.active]}><Text>Cash on Delivery</Text></Pressable>
       <Pressable onPress={() => setMethod('UPI')} style={[styles.option, method === 'UPI' && styles.active]}><Text>UPI</Text></Pressable>
       <Text style={styles.hint}>Razorpay/Stripe ready with placeholder keys.</Text>
-      <Pressable style={styles.btn} onPress={placeOrder} disabled={placing}><Text style={styles.btnText}>{placing ? 'Placing...' : 'Place Order'}</Text></Pressable>
+      <LoadingButton title="Place Order" loadingTitle="Sending" loading={placing} onPress={placeOrder} style={styles.btn} />
     </View>
   );
 }
@@ -52,6 +54,5 @@ const styles = StyleSheet.create({
   option: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10 },
   active: { borderWidth: 2, borderColor: COLORS.accent },
   hint: { color: COLORS.muted, marginTop: 6 },
-  btn: { marginTop: 14, backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 13 },
-  btnText: { color: '#fff', fontWeight: '800' },
+  btn: { marginTop: 14 },
 });
