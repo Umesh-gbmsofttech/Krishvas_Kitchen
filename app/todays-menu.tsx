@@ -1,33 +1,38 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS } from '../src/config/appConfig';
 import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
 import { api } from '../src/services/api';
 import { hasMore, paginate } from '../src/utils/pagination';
 import { resolveImageUrl } from '../src/utils/images';
-import { LoadingText } from '../src/components/LoadingText';
 import { AppTextInput as TextInput } from '../src/components/AppTextInput';
+import { Skeleton } from '../src/components/Skeleton';
 
 export default function TodaysMenuScreen() {
   const [menu, setMenu] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search, 350);
   const router = useRouter();
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        setMenu(await api.dailyMenu());
-      } finally {
-        setLoading(false);
-      }
-    };
-    load().catch(() => setLoading(false));
+  const load = useCallback(async (asRefresh = false) => {
+    if (asRefresh) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const daily = await api.dailyMenu();
+      setMenu(daily || null);
+    } finally {
+      if (asRefresh) setRefreshing(false);
+      else setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    load(false).catch(() => setLoading(false));
+  }, [load]);
 
   useEffect(() => {
     setPage(1);
@@ -37,16 +42,35 @@ export default function TodaysMenuScreen() {
     const list = menu?.items || [];
     const q = debouncedSearch.trim().toLowerCase();
     if (!q) return list;
-    return list.filter((i: any) => String(i?.name || '').toLowerCase().includes(q) || String(i?.category || '').toLowerCase().includes(q));
+    return list.filter((i: any) => {
+      const name = String(i?.name || '').toLowerCase();
+      const category = String(i?.category || '').toLowerCase();
+      return name.includes(q) || category.includes(q);
+    });
   }, [menu, debouncedSearch]);
 
   const visibleItems = useMemo(() => paginate(filteredItems, page), [filteredItems, page]);
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
+    >
       <Text style={styles.title}>{menu?.title || "Today's Menu"}</Text>
       <TextInput value={search} onChangeText={setSearch} placeholder="Search menu items" style={styles.search} />
-      {loading ? <LoadingText base="Loading" style={styles.loading} /> : null}
+      {loading
+        ? Array.from({ length: 4 }).map((_, idx) => (
+            <View key={`today-skeleton-${idx}`} style={styles.card}>
+              <Skeleton style={styles.image} />
+              <View style={{ flex: 1 }}>
+                <Skeleton style={styles.skelTitle} />
+                <Skeleton style={styles.skelLine} />
+                <Skeleton style={styles.skelPrice} />
+              </View>
+            </View>
+          ))
+        : null}
       {!loading && !filteredItems.length ? <Text style={styles.empty}>No menu items available.</Text> : null}
       {visibleItems.map((item: any) => (
         <Pressable key={item.id} style={styles.card} onPress={() => router.push({ pathname: '/item-details', params: { item: JSON.stringify(item) } })}>
@@ -75,13 +99,15 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 26 },
   title: { fontSize: 24, fontWeight: '900' , textAlign: 'center'},
   search: { marginTop: 10, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11 },
-  loading: { color: COLORS.muted, marginTop: 12, fontWeight: '700' },
   empty: { color: COLORS.muted, marginTop: 12 },
   card: { backgroundColor: '#fff', borderRadius: 14, padding: 10, marginTop: 10, flexDirection: 'row', alignItems: 'center' },
   image: { width: 76, height: 76, borderRadius: 10, marginRight: 10 },
   name: { fontWeight: '800', fontSize: 15 },
   meta: { color: COLORS.muted, marginTop: 2 },
   price: { color: COLORS.accent, marginTop: 4, fontWeight: '700' },
+  skelTitle: { height: 16, borderRadius: 8, width: '62%', marginTop: 2 },
+  skelLine: { height: 12, borderRadius: 8, width: '84%', marginTop: 8 },
+  skelPrice: { height: 12, borderRadius: 8, width: '40%', marginTop: 8 },
   more: { marginTop: 12, backgroundColor: '#fff', borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
   moreText: { fontWeight: '700', color: COLORS.text },
 });

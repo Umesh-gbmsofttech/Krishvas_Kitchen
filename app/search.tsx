@@ -1,28 +1,39 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS } from '../src/config/appConfig';
 import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
 import { api } from '../src/services/api';
 import { resolveImageUrl } from '../src/utils/images';
 import { hasMore, paginate } from '../src/utils/pagination';
-import { LoadingText } from '../src/components/LoadingText';
 import { AppTextInput as TextInput } from '../src/components/AppTextInput';
+import { Skeleton } from '../src/components/Skeleton';
 
 export default function SearchScreen() {
   const [sourceItems, setSourceItems] = useState<any[]>([]);
   const [results, setResults] = useState<any[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const debouncedQuery = useDebouncedValue(query, 400);
   const router = useRouter();
 
-  useEffect(() => {
-    api.dailyMenu()
-      .then((m) => setSourceItems(m?.items || []))
-      .catch(() => setSourceItems([]));
+  const loadSource = useCallback(async (asRefresh = false) => {
+    if (asRefresh) setRefreshing(true);
+    try {
+      const m = await api.dailyMenu();
+      setSourceItems(m?.items || []);
+    } catch {
+      setSourceItems([]);
+    } finally {
+      if (asRefresh) setRefreshing(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadSource(false).catch(() => setSourceItems([]));
+  }, [loadSource]);
 
   useEffect(() => {
     const q = debouncedQuery.trim().toLowerCase();
@@ -43,12 +54,26 @@ export default function SearchScreen() {
   const visible = useMemo(() => paginate(results, page), [results, page]);
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadSource(true)} />}
+    >
       <Text style={styles.title}>Search Menu</Text>
       <TextInput value={query} onChangeText={setQuery} placeholder="Type item name..." style={styles.search} />
 
       {!debouncedQuery.trim() ? <Text style={styles.hint}>Enter text to start search.</Text> : null}
-      {loading ? <LoadingText base="Loading" style={styles.hint} /> : null}
+      {loading
+        ? Array.from({ length: 3 }).map((_, idx) => (
+            <View key={`search-skeleton-${idx}`} style={styles.card}>
+              <Skeleton style={styles.image} />
+              <View style={{ flex: 1 }}>
+                <Skeleton style={styles.skelTitle} />
+                <Skeleton style={styles.skelLine} />
+              </View>
+            </View>
+          ))
+        : null}
       {!!debouncedQuery.trim() && !loading && !results.length ? <Text style={styles.hint}>No items matched.</Text> : null}
 
       {visible.map((item: any) => (
@@ -83,6 +108,8 @@ const styles = StyleSheet.create({
   image: { width: 70, height: 70, borderRadius: 10, marginRight: 10 },
   name: { fontWeight: '800' },
   meta: { color: COLORS.muted, marginTop: 3 },
+  skelTitle: { height: 16, borderRadius: 8, width: '58%', marginTop: 2 },
+  skelLine: { height: 12, borderRadius: 8, width: '76%', marginTop: 8 },
   more: { marginTop: 12, backgroundColor: '#fff', borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
   moreText: { fontWeight: '700', color: COLORS.text },
 });

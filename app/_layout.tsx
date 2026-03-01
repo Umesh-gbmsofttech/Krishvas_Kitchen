@@ -2,6 +2,7 @@ import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Animated, Image, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,7 +24,12 @@ const extractRunNumber = (value?: string | null) => {
 const UpdatePrompt = () => {
   const [visible, setVisible] = useState(false);
   const [latestTag, setLatestTag] = useState('');
-  const currentRun = useMemo(() => extractRunNumber(BUILD_NUMBER), []);
+  const currentRun = useMemo(() => {
+    const fromNativeBuild = extractRunNumber(String(Constants.nativeBuildVersion || ''));
+    const fromNativeVersion = extractRunNumber(String(Constants.nativeApplicationVersion || ''));
+    const fromExtraBuild = extractRunNumber(BUILD_NUMBER);
+    return fromNativeBuild ?? fromNativeVersion ?? fromExtraBuild;
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -37,7 +43,8 @@ const UpdatePrompt = () => {
         const latest = extractRunNumber(data?.tag_name) ?? extractRunNumber(data?.name);
         if (!mounted || !latest || !currentRun) return;
         if (latest > currentRun) {
-          setLatestTag(`v${latest}`);
+          const latestLabel = String(data?.tag_name || data?.name || `v${latest}`).trim();
+          setLatestTag(latestLabel);
           setVisible(true);
         }
       } catch {
@@ -182,10 +189,11 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const { items } = useCart();
 
   const showShell = APP_ROUTES_WITH_SHELL.has(pathname || '');
+  const headerBottomGap = 12;
   const profileUri = resolveImageUrl(user?.profileImageUrl);
   const cartCount = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items]);
   const cartScale = useRef(new Animated.Value(1)).current;
-  const topHeight = insets.top + 56;
+  const topHeight = insets.top + 100 + headerBottomGap;
   const bottomHeight = insets.bottom + 62;
 
   useEffect(() => {
@@ -211,7 +219,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           <View style={styles.headerRightGroup}>
             <Animated.View style={{ transform: [{ scale: cartScale }] }}>
               <Pressable style={styles.headerMiniIcon} onPress={() => router.push('/cart')}>
-                <Ionicons name="cart-outline" size={18} color="#fff" />
+                <Ionicons name="cart-outline" size={26} color="#fff" />
                 {cartCount > 0 ? <View style={styles.headerBadge}><Text style={styles.headerBadgeTxt}>{cartCount}</Text></View> : null}
               </Pressable>
             </Animated.View>
@@ -333,13 +341,13 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   headerMiniIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerIconText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  headerIconText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   headerTitleWrap: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { color: '#fff', fontWeight: '800', fontSize: 18, textAlign: 'center' },
   headerAvatar: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, borderColor: '#fff' },
