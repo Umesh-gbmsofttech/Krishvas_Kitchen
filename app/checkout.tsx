@@ -9,19 +9,27 @@ export default function CheckoutScreen() {
   const [addressLine, setAddressLine] = useState('');
   const [apartmentOrSociety, setApartmentOrSociety] = useState('');
   const [flatNumber, setFlatNumber] = useState('');
-  const [latitude, setLatitude] = useState(19.076);
-  const [longitude, setLongitude] = useState(72.8777);
   const [fetchingLiveLocation, setFetchingLiveLocation] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(false);
+  const [locationError, setLocationError] = useState('');
   const router = useRouter();
 
   const resolveLiveCoords = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return { latitude, longitude };
+      if (status !== 'granted') {
+        setLocationEnabled(false);
+        setLocationError('Location permission is required to continue checkout');
+        return null;
+      }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setLocationEnabled(true);
+      setLocationError('');
       return { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
     } catch {
-      return { latitude, longitude };
+      setLocationEnabled(false);
+      setLocationError('Unable to fetch live location');
+      return null;
     }
   };
 
@@ -30,8 +38,7 @@ export default function CheckoutScreen() {
     setFetchingLiveLocation(true);
     try {
       const coords = await resolveLiveCoords();
-      setLatitude(coords.latitude);
-      setLongitude(coords.longitude);
+      if (!coords) return;
       router.push({
         pathname: '/payment',
         params: {
@@ -51,13 +58,18 @@ export default function CheckoutScreen() {
     const fetchLocation = async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') return;
+        if (status !== 'granted') {
+          setLocationEnabled(false);
+          setLocationError('Location permission is required to continue checkout');
+          return;
+        }
         const loc = await Location.getCurrentPositionAsync({});
-        setLatitude(loc.coords.latitude);
-        setLongitude(loc.coords.longitude);
         setAddressLine(`Lat ${loc.coords.latitude.toFixed(4)}, Lng ${loc.coords.longitude.toFixed(4)}`);
+        setLocationEnabled(true);
+        setLocationError('');
       } catch {
-        // fallback values
+        setLocationEnabled(false);
+        setLocationError('Unable to fetch live location');
       }
     };
     fetchLocation();
@@ -66,14 +78,15 @@ export default function CheckoutScreen() {
   return (
     <View style={styles.screen}>
       <Text style={styles.title}>Checkout Address</Text>
-      <TextInput style={styles.input} value={addressLine} onChangeText={setAddressLine} placeholder="Address line" />
+      <TextInput style={styles.input} value={addressLine} onChangeText={setAddressLine} placeholder="Address line" editable={false} />
       <TextInput style={styles.input} value={apartmentOrSociety} onChangeText={setApartmentOrSociety} placeholder="Apartment / Society" />
       <TextInput style={styles.input} value={flatNumber} onChangeText={setFlatNumber} placeholder="Flat Number" />
+      {!!locationError ? <Text style={styles.error}>{locationError}</Text> : null}
 
       <Pressable
         style={styles.btn}
         onPress={goToPayment}
-        disabled={fetchingLiveLocation}
+        disabled={fetchingLiveLocation || !locationEnabled}
       >
         <Text style={styles.btnText}>{fetchingLiveLocation ? 'Fetching live location...' : 'Continue to Payment'}</Text>
       </Pressable>
@@ -85,6 +98,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg, padding: 16 },
   title: { fontSize: 26, fontWeight: '900', marginBottom: 12 , textAlign: 'center'},
   input: { backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 10 },
+  error: { color: COLORS.danger, marginTop: 2, marginBottom: 8 },
   btn: { marginTop: 8, backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 13 },
   btnText: { color: '#fff', fontWeight: '800' },
 });

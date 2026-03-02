@@ -1,7 +1,7 @@
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Animated, Image, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, AppState, Image, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -98,10 +98,6 @@ const AuthGate = ({ children }: { children: ReactNode }) => {
         router.replace('/profile');
         return;
       }
-      if (user?.role === 'DELIVERY_PARTNER' && pathname !== '/delivery/dashboard') {
-        router.replace('/delivery/dashboard');
-        return;
-      }
       if (pathname !== '/home') {
         router.replace('/home');
       }
@@ -193,7 +189,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const profileUri = resolveImageUrl(user?.profileImageUrl);
   const cartCount = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items]);
   const cartScale = useRef(new Animated.Value(1)).current;
-  const topHeight = insets.top + 100 + headerBottomGap;
+  const topHeight = insets.top + 50 + headerBottomGap;
   const bottomHeight = insets.bottom + 62;
 
   useEffect(() => {
@@ -210,16 +206,21 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
       {showShell ? (
         <View style={[styles.headerBar, { paddingTop: insets.top }]}>
-          <Pressable style={[styles.headerIcon, styles.headerLeft]} onPress={() => router.push('/search')}>
-            <Text style={styles.headerIconText}>Search</Text>
-          </Pressable>
+          <View style={styles.headerLeftRow}>
+            <Pressable style={styles.headerBackBtn} onPress={() => router.back()}>
+              <Ionicons name="arrow-back" size={18} color="#fff" />
+            </Pressable>
+            <Pressable style={styles.headerSearchBtn} onPress={() => router.push('/search')}>
+              <Ionicons name="search" size={18} color="#fff" />
+            </Pressable>
+          </View>
           <View pointerEvents="none" style={styles.headerTitleWrap}>
             <Text style={styles.headerTitle} numberOfLines={1}>{routeTitle(pathname || '')}</Text>
           </View>
           <View style={styles.headerRightGroup}>
             <Animated.View style={{ transform: [{ scale: cartScale }] }}>
               <Pressable style={styles.headerMiniIcon} onPress={() => router.push('/cart')}>
-                <Ionicons name="cart-outline" size={26} color="#fff" />
+                <Ionicons name="cart-outline" size={34} color="#fff" />
                 {cartCount > 0 ? <View style={styles.headerBadge}><Text style={styles.headerBadgeTxt}>{cartCount}</Text></View> : null}
               </Pressable>
             </Animated.View>
@@ -251,12 +252,39 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 };
 
 export default function RootLayout() {
+  const [statusBarHidden, setStatusBarHidden] = useState(false);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const startHideTimer = () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      setStatusBarHidden(false);
+      hideTimerRef.current = setTimeout(() => {
+        setStatusBarHidden(true);
+      }, 10000);
+    };
+
+    startHideTimer();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') startHideTimer();
+      else {
+        if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+        setStatusBarHidden(false);
+      }
+    });
+
+    return () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      sub.remove();
+    };
+  }, []);
+
   return (
     <AuthProvider>
       <NotificationProvider>
         <CartProvider>
           <AuthGate>
-            <StatusBar style="light" backgroundColor={COLORS.accent} translucent={false} />
+            <StatusBar style="light" backgroundColor={COLORS.accent} translucent={false} hidden={statusBarHidden} />
             <AppShell>
               <UpdatePrompt />
               <Stack screenOptions={{ headerShown: false }} initialRouteName="splash">
@@ -322,15 +350,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 12,
   },
-  headerIcon: {
-    width: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
+  headerLeftRow: {
     position: 'absolute',
+    left: 12,
     top: 0,
     bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  headerLeft: { left: 12 },
   headerRightGroup: {
     position: 'absolute',
     right: 8,
@@ -347,7 +375,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerIconText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  headerBackBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  headerSearchBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
   headerTitleWrap: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { color: '#fff', fontWeight: '800', fontSize: 18, textAlign: 'center' },
   headerAvatar: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, borderColor: '#fff' },

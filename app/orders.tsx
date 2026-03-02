@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '../src/config/appConfig';
 import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
 import { api } from '../src/services/api';
@@ -13,11 +13,19 @@ export default function OrdersScreen() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [otpByOrder, setOtpByOrder] = useState<Record<string, string>>({});
+  const [verifyingOrderId, setVerifyingOrderId] = useState<string | null>(null);
+  const [expandedByOrder, setExpandedByOrder] = useState<Record<string, boolean>>({});
+  const [detailsVisible, setDetailsVisible] = useState(false);
+  const [detailsOrder, setDetailsOrder] = useState<any | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search, 350);
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const router = useRouter();
+  const isDeliveryPartner = user?.role === 'DELIVERY_PARTNER';
 
   const loadOrders = useCallback(async (asRefresh = false) => {
     if (!token) {
@@ -28,13 +36,22 @@ export default function OrdersScreen() {
     if (asRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const list = await api.myOrders();
-      setOrders(list || []);
+      setError('');
+      const list = isDeliveryPartner ? await api.myAssignedOrders() : await api.myOrders();
+      const normalized = list || [];
+      setOrders(
+        isDeliveryPartner
+          ? normalized.filter((o: any) => String(o?.status || '').toUpperCase() === 'DELIVERED')
+          : normalized
+      );
+    } catch (e: any) {
+      setOrders([]);
+      setError(e?.response?.data?.message || `Unable to load orders (${e?.response?.status || 'NO_STATUS'})`);
     } finally {
       if (asRefresh) setRefreshing(false);
       else setLoading(false);
     }
-  }, [token]);
+  }, [token, isDeliveryPartner]);
 
   useEffect(() => {
     loadOrders(false).catch(() => setLoading(false));
@@ -47,10 +64,32 @@ export default function OrdersScreen() {
   const filtered = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase();
     if (!q) return orders;
-    return orders.filter((o) => String(o.orderId || '').toLowerCase().includes(q) || String(o.status || '').toLowerCase().includes(q));
+    return orders.filter(
+      (o) =>
+        String(o.orderId || '').toLowerCase().includes(q) ||
+        String(o.status || '').toLowerCase().includes(q) ||
+        String(o.customerName || '').toLowerCase().includes(q) ||
+        String(o.addressLine || '').toLowerCase().includes(q)
+    );
   }, [orders, debouncedSearch]);
 
   const visible = useMemo(() => paginate(filtered, page), [filtered, page]);
+  const isClosedStatus = useCallback((status: string | undefined) => ['DELIVERED', 'CANCELLED', 'FAILED'].includes(String(status || '')), []);
+
+  const openOrderDetails = async (orderId: string) => {
+    setDetailsVisible(true);
+    setDetailsLoading(true);
+    setDetailsOrder(null);
+    try {
+      const data = await api.orderById(orderId);
+      setDetailsOrder(data || null);
+    } catch (e: any) {
+      setError(e?.response?.data?.message || `Unable to load order details (${e?.response?.status || 'NO_STATUS'})`);
+      setDetailsVisible(false);
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
 
   return (
     <ScrollView
@@ -58,13 +97,14 @@ export default function OrdersScreen() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadOrders(true)} />}
     >
-      <Text style={styles.title}>Orders</Text>
+      <Text style={styles.title}>{isDeliveryPartner ? 'Delivered Orders' : 'Orders'}</Text>
       <TextInput
         value={search}
         onChangeText={setSearch}
-        placeholder="Search by order id or status"
+        placeholder={isDeliveryPartner ? 'Search by order id, status, user, address' : 'Search by order id or status'}
         style={styles.search}
       />
+      {!!error ? <Text style={styles.error}>{error}</Text> : null}
       {loading
         ? Array.from({ length: 4 }).map((_, idx) => (
             <View key={`orders-skeleton-${idx}`} style={styles.card}>
@@ -74,19 +114,144 @@ export default function OrdersScreen() {
             </View>
           ))
         : null}
-      {!loading && !filtered.length ? <Text style={styles.empty}>No orders found.</Text> : null}
-      {visible.map((order) => (
-        <Pressable key={order.id} style={styles.card} onPress={() => router.push({ pathname: '/order-tracking', params: { orderId: order.orderId } })}>
-          <Text style={styles.id}>{order.orderId}</Text>
-          <Text>{order.status}</Text>
+      {!loading && !filtered.length ? <Text style={styles.empty}>{isDeliveryPartner ? 'No attended/delivered orders found.' : 'No orders found.'}</Text> : null}
+      {visible.map((order) => {
+        const orderKey = order.orderId || String(order.id);
+        const closed = isClosedStatus(order.status);
+        const expanded = !!expandedByOrder[orderKey];
+
+        if (closed && !expanded) {
+          return (
+            <Pressable key={orderKey} style={styles.cardMin} onPress={() => setExpandedByOrder((prev) => ({ ...prev, [orderKey]: true }))}>
+              <View style={styles.cardTop}>
+                <Text style={styles.id}>{order.orderId}</Text>
+                <Text style={styles.statusPill}>{order.status}</Text>
+              </View>
+              <Text style={styles.amount}>Rs {order.totalAmount}</Text>
+              <Text style={styles.minHint}>Tap to view</Text>
+            </Pressable>
+          );
+        }
+
+        return (
+          <View key={orderKey} style={styles.card}>
+          <View style={styles.cardTop}>
+            <Text style={styles.id}>{order.orderId}</Text>
+            <Text style={styles.statusPill}>{order.status}</Text>
+          </View>
           <Text style={styles.amount}>Rs {order.totalAmount}</Text>
-        </Pressable>
-      ))}
+          {isDeliveryPartner ? (
+            <>
+              <Text style={styles.meta}><Text style={styles.metaLabel}>User:</Text> {order.customerName || 'N/A'}</Text>
+              <Text style={styles.meta}><Text style={styles.metaLabel}>Address:</Text> {order.addressLine || 'N/A'}</Text>
+              <Text style={styles.meta}><Text style={styles.metaLabel}>Flat/Society:</Text> {order.flatNumber || '-'}, {order.apartmentOrSociety || '-'}</Text>
+              {!closed ? (
+                <>
+                  <View style={styles.actionRow}>
+                    <Pressable style={styles.actionBtn} onPress={() => router.push({ pathname: '/delivery/map-view', params: { orderId: order.orderId } })}>
+                      <Text style={styles.actionText}>View in Map</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.actionBtn, styles.callBtn, !order.customerPhone && styles.disabledBtn]}
+                      disabled={!order.customerPhone}
+                      onPress={() => Linking.openURL(`tel:${order.customerPhone}`)}
+                    >
+                      <Text style={styles.callText}>Call User</Text>
+                    </Pressable>
+                  </View>
+                  {order.status === 'OUT_FOR_DELIVERY' ? (
+                    <>
+                      <TextInput
+                        value={otpByOrder[order.orderId] || ''}
+                        onChangeText={(v) => setOtpByOrder((prev) => ({ ...prev, [order.orderId]: v }))}
+                        placeholder="Enter customer OTP"
+                        keyboardType="number-pad"
+                        style={styles.otpInput}
+                      />
+                      <Pressable
+                        style={[styles.verifyBtn, verifyingOrderId === order.orderId && styles.disabledBtn]}
+                        disabled={verifyingOrderId === order.orderId || !(otpByOrder[order.orderId] || '').trim()}
+                        onPress={async () => {
+                          const otp = (otpByOrder[order.orderId] || '').trim();
+                          if (!otp) return;
+                          setVerifyingOrderId(order.orderId);
+                          try {
+                            await api.verifyDeliveryOtp(order.orderId, otp);
+                            setOtpByOrder((prev) => ({ ...prev, [order.orderId]: '' }));
+                            await loadOrders(true);
+                          } catch (e: any) {
+                            setError(e?.response?.data?.message || `OTP verification failed (${e?.response?.status || 'NO_STATUS'})`);
+                          } finally {
+                            setVerifyingOrderId(null);
+                          }
+                        }}
+                      >
+                        <Text style={styles.verifyText}>{verifyingOrderId === order.orderId ? 'Verifying...' : 'Verify OTP & Complete'}</Text>
+                      </Pressable>
+                    </>
+                  ) : null}
+                </>
+              ) : (
+                <Pressable style={styles.detailsBtn} onPress={() => openOrderDetails(order.orderId)}>
+                  <Text style={styles.detailsText}>Order Details</Text>
+                </Pressable>
+              )}
+            </>
+          ) : (
+            closed ? (
+              <Pressable style={styles.detailsBtn} onPress={() => openOrderDetails(order.orderId)}>
+                <Text style={styles.detailsText}>Order Details</Text>
+              </Pressable>
+            ) : (
+              <Pressable style={styles.trackBtn} onPress={() => router.push({ pathname: '/order-tracking', params: { orderId: order.orderId } })}>
+                <Text style={styles.trackText}>Track Order</Text>
+              </Pressable>
+            )
+          )}
+          {closed ? (
+            <Pressable style={styles.minimizeBtn} onPress={() => setExpandedByOrder((prev) => ({ ...prev, [orderKey]: false }))}>
+              <Text style={styles.minimizeTxt}>Minimize</Text>
+            </Pressable>
+          ) : null}
+        </View>
+        );
+      })}
       {!loading && hasMore(filtered, page) ? (
         <Pressable style={styles.more} onPress={() => setPage((p) => p + 1)}>
           <Text style={styles.moreText}>Load More</Text>
         </Pressable>
       ) : null}
+
+      <Modal visible={detailsVisible} transparent animationType="fade" onRequestClose={() => setDetailsVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Order Details</Text>
+            {detailsLoading ? <Text style={styles.modalMeta}>Loading...</Text> : null}
+            {detailsOrder ? (
+              <ScrollView style={{ maxHeight: 380 }}>
+                <Text style={styles.modalMeta}><Text style={styles.modalLabel}>Order ID:</Text> {detailsOrder.orderId}</Text>
+                <Text style={styles.modalMeta}><Text style={styles.modalLabel}>Status:</Text> {detailsOrder.status}</Text>
+                <Text style={styles.modalMeta}><Text style={styles.modalLabel}>Amount:</Text> Rs {detailsOrder.totalAmount}</Text>
+                <Text style={styles.modalMeta}><Text style={styles.modalLabel}>Address:</Text> {detailsOrder.addressLine}</Text>
+                <Text style={styles.modalMeta}><Text style={styles.modalLabel}>Flat/Society:</Text> {detailsOrder.flatNumber}, {detailsOrder.apartmentOrSociety}</Text>
+                {(detailsOrder.items || []).length ? (
+                  <>
+                    <Text style={styles.modalItemsTitle}>Items</Text>
+                    {(detailsOrder.items || []).map((it: any, idx: number) => (
+                      <Text key={`it-${idx}`} style={styles.modalMeta}>
+                        {idx + 1}. {it.itemName} x{it.quantity} - Rs {it.totalPrice}
+                      </Text>
+                    ))}
+                  </>
+                ) : null}
+              </ScrollView>
+            ) : null}
+            <Pressable style={styles.modalClose} onPress={() => setDetailsVisible(false)}>
+              <Text style={styles.modalCloseTxt}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -97,9 +262,39 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '900' , textAlign: 'center'},
   search: { marginTop: 10, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11 },
   empty: { color: COLORS.muted, marginTop: 12 },
+  error: { color: COLORS.danger, marginTop: 8 },
+  cardMin: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 10 },
+  minHint: { marginTop: 4, color: COLORS.muted, fontSize: 12 },
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 10 },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   id: { fontWeight: '800' },
+  statusPill: { backgroundColor: COLORS.accentSoft, color: COLORS.accent, fontWeight: '800', fontSize: 11, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   amount: { marginTop: 5, color: COLORS.accent, fontWeight: '700' },
+  meta: { marginTop: 4, color: COLORS.text },
+  metaLabel: { fontWeight: '700' },
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  actionBtn: { flex: 1, borderRadius: 10, alignItems: 'center', paddingVertical: 10, backgroundColor: COLORS.text },
+  actionText: { color: '#fff', fontWeight: '700' },
+  callBtn: { backgroundColor: COLORS.accent },
+  callText: { color: '#fff', fontWeight: '700' },
+  otpInput: { marginTop: 10, backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: '#E6E6E6' },
+  verifyBtn: { marginTop: 8, backgroundColor: COLORS.text, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
+  verifyText: { color: '#fff', fontWeight: '700' },
+  detailsBtn: { marginTop: 8, backgroundColor: COLORS.text, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
+  detailsText: { color: '#fff', fontWeight: '700' },
+  minimizeBtn: { marginTop: 8, alignSelf: 'flex-end', paddingHorizontal: 8, paddingVertical: 4 },
+  minimizeTxt: { color: COLORS.muted, fontSize: 12, fontWeight: '700' },
+  disabledBtn: { opacity: 0.5 },
+  trackBtn: { marginTop: 8, backgroundColor: COLORS.text, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
+  trackText: { color: '#fff', fontWeight: '700' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', padding: 16 },
+  modalCard: { backgroundColor: '#fff', borderRadius: 14, padding: 12 },
+  modalTitle: { fontSize: 18, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
+  modalLabel: { fontWeight: '800', color: COLORS.text },
+  modalMeta: { color: COLORS.text, marginTop: 4 },
+  modalItemsTitle: { marginTop: 8, fontWeight: '900', color: COLORS.text },
+  modalClose: { marginTop: 10, backgroundColor: COLORS.text, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
+  modalCloseTxt: { color: '#fff', fontWeight: '800' },
   skelTitle: { height: 16, borderRadius: 8, width: '55%' },
   skelLine: { height: 12, borderRadius: 8, width: '38%', marginTop: 8 },
   skelAmount: { height: 12, borderRadius: 8, width: '28%', marginTop: 8 },

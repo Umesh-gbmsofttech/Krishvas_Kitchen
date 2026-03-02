@@ -1,7 +1,8 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/context/AuthContext';
 import { COLORS } from '../src/config/appConfig';
 import { api } from '../src/services/api';
@@ -14,7 +15,9 @@ export default function ProfileScreen() {
   const router = useRouter();
 
   const isAdmin = user?.role === 'ADMIN';
+  const isDeliveryPartner = user?.role === 'DELIVERY_PARTNER' || user?.deliveryBadge;
   const [adminStats, setAdminStats] = useState<any>({});
+  const [deliveryData, setDeliveryData] = useState<any>({});
 
   const [editVisible, setEditVisible] = useState(false);
   const [logoutVisible, setLogoutVisible] = useState(false);
@@ -24,6 +27,7 @@ export default function ProfileScreen() {
   const [fullName, setFullName] = useState(user?.fullName || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  const goOrdersAnim = useRef(new Animated.Value(1)).current;
 
   const openEdit = () => {
     setError('');
@@ -79,11 +83,47 @@ export default function ProfileScreen() {
 
   const profileUri = resolveImageUrl(user?.profileImageUrl);
   const previewUri = selectedImageUri || profileUri;
+  const adminActions = [
+    { label: 'Menu Scheduler', icon: 'calendar-outline' as const, route: '/admin/menu-scheduler' },
+    { label: 'Carousel Images', icon: 'images-outline' as const, route: '/admin/carousel-management' },
+    { label: 'Orders', icon: 'receipt-outline' as const, route: '/admin/orders-management' },
+    { label: 'Users', icon: 'people-outline' as const, route: '/admin/users-list' },
+    { label: 'Approvals', icon: 'checkmark-done-outline' as const, route: '/admin/delivery-approvals' },
+    { label: 'Reports', icon: 'bar-chart-outline' as const, route: '/admin/reports' },
+  ];
 
   useEffect(() => {
     if (!isAdmin) return;
     api.adminDashboard().then(setAdminStats).catch(() => {});
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isDeliveryPartner) return;
+    api.deliveryDashboard().then(setDeliveryData).catch(() => {});
+  }, [isDeliveryPartner]);
+
+  const activeAssignedOrdersCount = useMemo(
+    () =>
+      (deliveryData.deliveries || []).filter((o: any) =>
+        ['PLACED', 'CONFIRMED', 'PREPARING', 'OUT_FOR_DELIVERY'].includes(String(o?.status || ''))
+      ).length,
+    [deliveryData.deliveries]
+  );
+
+  useEffect(() => {
+    if (!isDeliveryPartner || activeAssignedOrdersCount <= 0) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(goOrdersAnim, { toValue: 1.06, duration: 550, useNativeDriver: true }),
+        Animated.timing(goOrdersAnim, { toValue: 1, duration: 550, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      goOrdersAnim.setValue(1);
+    };
+  }, [isDeliveryPartner, activeAssignedOrdersCount, goOrdersAnim]);
 
   return (
     <>
@@ -118,23 +158,61 @@ export default function ProfileScreen() {
               <Text style={styles.statValue}>{adminStats.pendingDeliveryPartners || 0}</Text>
               <Text>Pending Delivery Partners</Text>
             </View>
-            <Pressable style={styles.link} onPress={() => router.push('/admin/menu-scheduler')}><Text>Menu Scheduler</Text></Pressable>
-            <Pressable style={styles.link} onPress={() => router.push('/admin/carousel-management')}><Text>Manage Carousel Images</Text></Pressable>
-            <Pressable style={styles.link} onPress={() => router.push('/admin/orders-management')}><Text>Orders Management</Text></Pressable>
-            <Pressable style={styles.link} onPress={() => router.push('/admin/users-list')}><Text>Users List</Text></Pressable>
-            <Pressable style={styles.link} onPress={() => router.push('/admin/delivery-approvals')}><Text>Delivery Approvals</Text></Pressable>
-            <Pressable style={styles.link} onPress={() => router.push('/admin/reports')}><Text>Reports</Text></Pressable>
+            <View style={styles.adminGrid}>
+              {adminActions.map((action) => (
+                <Pressable key={action.route} style={styles.adminActionCard} onPress={() => router.push(action.route as any)}>
+                  <View style={styles.adminActionIconWrap}>
+                    <Ionicons name={action.icon} size={20} color={COLORS.accent} />
+                  </View>
+                  <Text style={styles.adminActionText}>{action.label}</Text>
+                </Pressable>
+              ))}
+            </View>
           </>
         ) : (
           <>
             <Pressable style={styles.link} onPress={() => router.push('/order-history')}><Text>Order History</Text></Pressable>
-            {user?.role === 'DELIVERY_PARTNER' || user?.deliveryBadge ? (
-              <Pressable style={styles.link} onPress={() => router.push('/delivery/dashboard')}><Text>Delivery Dashboard</Text></Pressable>
-            ) : (
+            {!isDeliveryPartner ? (
               <Pressable style={styles.link} onPress={() => router.push('/delivery-partner-registration')}><Text>Become a Delivery Partner</Text></Pressable>
-            )}
+            ) : null}
           </>
         )}
+
+        {isDeliveryPartner ? (
+          <>
+            <View style={styles.row}>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{deliveryData.todayDeliveries || 0}</Text>
+                <Text>Today</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{deliveryData.last7DaysDeliveries || 0}</Text>
+                <Text>Last 7 Days</Text>
+              </View>
+            </View>
+            <View style={styles.row}>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{Number(deliveryData.distanceKm || 0).toFixed(1)}</Text>
+                <Text>KM</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>Rs {Number(deliveryData.estimatedEarnings || 0).toFixed(0)}</Text>
+                <Text>Earnings</Text>
+              </View>
+            </View>
+            {activeAssignedOrdersCount > 0 ? (
+              <View style={styles.orderCard}>
+                <Text style={styles.orderAvailableHeading}>Order Available</Text>
+                <Text style={styles.mutedCentered}>New assigned orders: {activeAssignedOrdersCount}</Text>
+                <Animated.View style={{ transform: [{ scale: goOrdersAnim }] }}>
+                  <Pressable style={styles.mapBtn} onPress={() => router.push('/orders')}>
+                    <Text style={styles.mapBtnTxt}>Go to Orders</Text>
+                  </Pressable>
+                </Animated.View>
+              </View>
+            ) : null}
+          </>
+        ) : null}
 
         <Pressable style={styles.link} onPress={() => router.push('/home')}><Text>Back to Home</Text></Pressable>
 
@@ -205,6 +283,32 @@ const styles = StyleSheet.create({
   statWideCard: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 8 },
   statValue: { fontSize: 26, fontWeight: '900', color: COLORS.accent },
   link: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 8 },
+  adminGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
+  adminActionCard: {
+    width: '48%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+  },
+  adminActionIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.accentSoft,
+    marginBottom: 6,
+  },
+  adminActionText: { color: COLORS.text, fontWeight: '700', textAlign: 'center', fontSize: 12 },
+  orderCard: { backgroundColor: '#fff', borderRadius: 12, padding: 10, marginTop: 8 },
+  orderAvailableHeading: { textAlign: 'center', fontWeight: '900', fontSize: 18, color: COLORS.text },
+  mapBtn: { marginTop: 8, backgroundColor: COLORS.card, borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  mapBtnTxt: { color: COLORS.text, fontWeight: '700' },
+  mutedCentered: { marginTop: 4, color: COLORS.muted, textAlign: 'center' },
 
   modalBackdrop: {
     flex: 1,
