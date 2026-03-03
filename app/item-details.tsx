@@ -4,6 +4,7 @@ import { useCart } from '../src/context/CartContext';
 import { COLORS } from '../src/config/appConfig';
 import { resolveImageUrl } from '../src/utils/images';
 import { AnimatedHeading } from '../src/components/AnimatedHeading';
+import { formatCurrency } from '../src/utils/format';
 
 export default function ItemDetailsScreen() {
   const { item } = useLocalSearchParams<{ item: string }>();
@@ -24,7 +25,7 @@ export default function ItemDetailsScreen() {
         <Image source={imageSource} style={styles.cardImage} />
         <Text style={styles.title}>{parsed.name}</Text>
         <Text style={styles.desc}>{parsed.description}</Text>
-        <Text style={styles.price}>Rs {parsed.price}</Text>
+        <Text style={styles.price}>{formatCurrency(Number(parsed.price || 0))}</Text>
 
         <AnimatedHeading text="Ingredients" />
         <Text style={styles.pill}>Yogurt Juice</Text>

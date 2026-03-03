@@ -26,6 +26,8 @@ export const RELEASES_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/rel
 export const RELEASES_LATEST_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
 export const RAZORPAY_KEY = 'rzp_test_placeholder_key';
 export const STRIPE_KEY = 'pk_test_placeholder_key';
+export const CURRENCY_CODE = 'GBP';
+export const CURRENCY_SYMBOL = '£';
 
 export const COLORS = {
   bg: '#F4F2EC',

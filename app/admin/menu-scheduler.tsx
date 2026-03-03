@@ -1,11 +1,13 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api } from '../../src/services/api';
 import { COLORS } from '../../src/config/appConfig';
 import { resolveImageUrl } from '../../src/utils/images';
 import { AnimatedHeading } from '../../src/components/AnimatedHeading';
 import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
+import { formatCurrency } from '../../src/utils/format';
+import { WeekDateStrip } from '../../src/components/WeekDateStrip';
 
 type DraftItem = {
   name: string;
@@ -27,6 +29,7 @@ type ScheduledMenuVM = {
 };
 
 const PAGE_SIZE = 6;
+const MEAL_SLOTS = ['ALL', 'BREAKFAST', 'LUNCH', 'DINNER'] as const;
 
 const createBlankItem = (): DraftItem => ({
   name: '',
@@ -72,6 +75,7 @@ export default function MenuSchedulerScreen() {
   const [error, setError] = useState('');
   const [editingMenuId, setEditingMenuId] = useState<number | null>(null);
   const [items, setItems] = useState<DraftItem[]>([createBlankItem()]);
+  const [mealSlots, setMealSlots] = useState<string[]>(['ALL']);
   const [showMenuForm, setShowMenuForm] = useState(false);
   const [expandedScheduledId, setExpandedScheduledId] = useState<number | null>(null);
   const [expandedPastId, setExpandedPastId] = useState<number | null>(null);
@@ -129,6 +133,7 @@ export default function MenuSchedulerScreen() {
     setDescription('');
     setScheduleDate(today);
     setItems([createBlankItem()]);
+    setMealSlots(['ALL']);
     setError('');
     setShowMenuForm(false);
   };
@@ -149,6 +154,11 @@ export default function MenuSchedulerScreen() {
       existingImageUrl: it.imageUrl || '',
     }));
     setItems(mappedItems.length ? mappedItems : [createBlankItem()]);
+    const slots = String(menu.mealSlots || menu.raw?.mealSlots || 'ALL')
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
+    setMealSlots(slots.length ? slots : ['ALL']);
     setError('');
     setShowMenuForm(true);
   };
@@ -182,6 +192,7 @@ export default function MenuSchedulerScreen() {
         description,
         scheduleDate,
         template: true,
+        mealSlots,
         items: payloadItems,
       };
       if (editingMenuId) {
@@ -196,6 +207,35 @@ export default function MenuSchedulerScreen() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const removeMenu = async (menuId: number) => {
+    if (saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      await api.deleteMenu(menuId);
+      if (editingMenuId === menuId) resetForm();
+      await load();
+    } catch (e: any) {
+      setError(e?.response?.data?.message || 'Unable to delete menu');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmDeleteMenu = (menuId: number) => {
+    Alert.alert('Delete Menu', 'Are you sure you want to delete this menu?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => removeMenu(menuId) },
+    ]);
+  };
+
+  const confirmRemoveItem = (index: number) => {
+    Alert.alert('Remove Item', 'Remove this item from the menu form?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => setItems((p) => p.filter((_, i) => i !== index)) },
+    ]);
   };
 
   const visibleScheduled = scheduled.slice(0, scheduledPage * PAGE_SIZE);
@@ -240,24 +280,57 @@ export default function MenuSchedulerScreen() {
         <View style={styles.formWrap}>
           <TextInput value={title} onChangeText={setTitle} style={styles.input} placeholder="Menu title" />
           <TextInput value={description} onChangeText={setDescription} style={styles.input} placeholder="Description" />
-          <TextInput value={scheduleDate} onChangeText={setScheduleDate} style={styles.input} placeholder="YYYY-MM-DD" />
+          <WeekDateStrip value={scheduleDate} onChange={setScheduleDate} />
+          <Text style={styles.selectedDateText}>Selected Date: {scheduleDate}</Text>
+          <View style={styles.slotRow}>
+            {MEAL_SLOTS.map((slot) => {
+              const active = mealSlots.includes(slot);
+              return (
+                <Pressable
+                  key={slot}
+                  style={[styles.slotChip, active && styles.slotChipActive]}
+                  onPress={() =>
+                    setMealSlots((prev) => {
+                      if (slot === 'ALL') return ['ALL'];
+                      const withoutAll = prev.filter((x) => x !== 'ALL');
+                      if (withoutAll.includes(slot)) {
+                        const next = withoutAll.filter((x) => x !== slot);
+                        return next.length ? next : ['ALL'];
+                      }
+                      return [...withoutAll, slot];
+                    })
+                  }
+                >
+                  <Text style={[styles.slotChipTxt, active && styles.slotChipTxtActive]}>{slot}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
           <AnimatedHeading text="Items" />
           {items.map((item, idx) => {
             const resolvedExisting = resolveImageUrl(item.existingImageUrl);
-            const preview = item.imageUri ? { uri: item.imageUri } : resolvedExisting ? { uri: resolvedExisting } : require('../../assets/images/mutton.jpg');
+            const preview = item.imageUri ? { uri: item.imageUri } : resolvedExisting ? { uri: resolvedExisting } : null;
             return (
               <View key={idx} style={styles.itemForm}>
                 <Text style={styles.itemLabel}>Item {idx + 1}</Text>
-                <Image source={preview} style={styles.preview} />
-                <Pressable style={styles.pickBtn} onPress={() => pickImage(idx)}>
-                  <Text style={styles.pickBtnText}>Select Image</Text>
-                </Pressable>
+                {preview ? (
+                  <>
+                    <Image source={preview} style={styles.preview} />
+                    <Pressable style={styles.pickBtn} onPress={() => pickImage(idx)}>
+                      <Text style={styles.pickBtnText}>Change Image</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <Pressable style={styles.imagePlaceholder} onPress={() => pickImage(idx)}>
+                    <Text style={styles.imagePlaceholderText}>Select Image</Text>
+                  </Pressable>
+                )}
                 <TextInput value={item.name} onChangeText={(v) => setItems((p) => p.map((x, i) => (i === idx ? { ...x, name: v } : x)))} style={styles.input} placeholder="Item name" />
                 <TextInput value={item.description} onChangeText={(v) => setItems((p) => p.map((x, i) => (i === idx ? { ...x, description: v } : x)))} style={styles.input} placeholder="Item description" />
                 <TextInput value={item.price} onChangeText={(v) => setItems((p) => p.map((x, i) => (i === idx ? { ...x, price: v } : x)))} style={styles.input} placeholder="Price" keyboardType="numeric" />
                 {items.length > 1 ? (
-                  <Pressable style={styles.removeBtn} onPress={() => setItems((p) => p.filter((_, i) => i !== idx))}>
+                  <Pressable style={styles.removeBtn} onPress={() => confirmRemoveItem(idx)}>
                     <Text style={styles.removeBtnText}>Remove Item</Text>
                   </Pressable>
                 ) : null}
@@ -289,7 +362,7 @@ export default function MenuSchedulerScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.bold}>{it.name}</Text>
                     <Text numberOfLines={1}>{it.description}</Text>
-                    <Text>Rs {it.price}</Text>
+                    <Text>{formatCurrency(Number(it.price || 0))}</Text>
                   </View>
                 </View>
               ))}
@@ -303,12 +376,15 @@ export default function MenuSchedulerScreen() {
         <View key={m.id} style={styles.card}>
           <TouchableOpacity activeOpacity={0.8} onPress={() => setExpandedScheduledId((prev) => (prev === m.id ? null : m.id))}>
             <Text style={styles.bold}>{m.title}</Text>
-            <Text>{m.scheduleDate}</Text>
+            <Text>{m.scheduleDate} | {String(m.raw?.mealSlots || 'ALL')}</Text>
           </TouchableOpacity>
           {expandedScheduledId === m.id ? (
             <>
               <Pressable style={styles.editBtn} onPress={() => editScheduledMenu(m.raw)}>
                 <Text style={styles.editBtnText}>Edit Scheduled Menu</Text>
+              </Pressable>
+              <Pressable style={styles.deleteBtn} onPress={() => confirmDeleteMenu(m.id)}>
+                <Text style={styles.deleteBtnText}>Delete Menu</Text>
               </Pressable>
               {m.items.map((it: any) => (
                 <View key={it.id} style={styles.itemCard}>
@@ -316,7 +392,7 @@ export default function MenuSchedulerScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.bold}>{it.name}</Text>
                     <Text numberOfLines={1}>{it.description}</Text>
-                    <Text>Rs {it.price}</Text>
+                    <Text>{formatCurrency(Number(it.price || 0))}</Text>
                   </View>
                 </View>
               ))}
@@ -331,7 +407,7 @@ export default function MenuSchedulerScreen() {
         <View key={`past-${m.id}`} style={styles.card}>
           <TouchableOpacity activeOpacity={0.8} onPress={() => setExpandedPastId((prev) => (prev === m.id ? null : m.id))}>
             <Text style={styles.bold}>{m.title}</Text>
-            <Text>{m.scheduleDate}</Text>
+            <Text>{m.scheduleDate} | {String(m.raw?.mealSlots || 'ALL')}</Text>
           </TouchableOpacity>
           {expandedPastId === m.id ? (
             <>
@@ -341,7 +417,7 @@ export default function MenuSchedulerScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.bold}>{it.name}</Text>
                     <Text numberOfLines={1}>{it.description}</Text>
-                    <Text>Rs {it.price}</Text>
+                    <Text>{formatCurrency(Number(it.price || 0))}</Text>
                   </View>
                 </View>
               ))}
@@ -367,6 +443,12 @@ const styles = StyleSheet.create({
   sectionToggleTitle: { fontWeight: '900', color: COLORS.text },
   sectionToggleSub: { marginTop: 2, color: COLORS.muted, fontSize: 12 },
   formWrap: { marginTop: 8 },
+  selectedDateText: { marginTop: 6, color: COLORS.text, fontWeight: '700' },
+  slotRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  slotChip: { backgroundColor: '#fff', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: '#EAEAEA' },
+  slotChipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+  slotChipTxt: { color: COLORS.text, fontWeight: '700', fontSize: 12 },
+  slotChipTxtActive: { color: '#fff' },
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 10, marginTop: 8 },
   bold: { fontWeight: '800' },
   itemLabel: { fontWeight: '700', color: COLORS.text, marginBottom: 2 },
@@ -374,6 +456,19 @@ const styles = StyleSheet.create({
   pickBtn: { backgroundColor: '#111', borderRadius: 10, alignItems: 'center', paddingVertical: 10, marginTop: 8 },
   pickBtnText: { color: '#fff', fontWeight: '700' },
   preview: { width: '100%', height: 160, borderRadius: 10, marginTop: 8 },
+  imagePlaceholder: {
+    width: '100%',
+    height: 160,
+    borderRadius: 10,
+    marginTop: 8,
+    borderWidth: 1.5,
+    borderColor: '#D7D7D7',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FAFAFA',
+  },
+  imagePlaceholderText: { color: COLORS.muted, fontWeight: '700' },
   removeBtn: { marginTop: 8, backgroundColor: COLORS.danger, borderRadius: 8, alignItems: 'center', paddingVertical: 8 },
   removeBtnText: { color: '#fff', fontWeight: '700' },
   addItemBtn: { backgroundColor: '#111', borderRadius: 12, alignItems: 'center', paddingVertical: 11, marginTop: 10 },
@@ -382,6 +477,8 @@ const styles = StyleSheet.create({
   cancelEditText: { color: COLORS.text, fontWeight: '700' },
   editBtn: { marginTop: 8, backgroundColor: COLORS.accentSoft, borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
   editBtnText: { color: COLORS.accent, fontWeight: '800' },
+  deleteBtn: { marginTop: 8, backgroundColor: '#fdecea', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  deleteBtnText: { color: COLORS.danger, fontWeight: '800' },
   itemCard: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, backgroundColor: '#f6f6f6', borderRadius: 10, padding: 6 },
   smallImage: { width: 56, height: 56, borderRadius: 8 },
   paginationText: { marginTop: 8, color: COLORS.muted, fontSize: 12, textAlign: 'center' },

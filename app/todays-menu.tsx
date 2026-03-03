@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS } from '../src/config/appConfig';
 import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
 import { api } from '../src/services/api';
@@ -8,8 +8,10 @@ import { hasMore, paginate } from '../src/utils/pagination';
 import { resolveImageUrl } from '../src/utils/images';
 import { AppTextInput as TextInput } from '../src/components/AppTextInput';
 import { Skeleton } from '../src/components/Skeleton';
+import { formatCurrency } from '../src/utils/format';
 
 export default function TodaysMenuScreen() {
+  const params = useLocalSearchParams<{ slot?: string }>();
   const [menu, setMenu] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -17,6 +19,7 @@ export default function TodaysMenuScreen() {
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search, 350);
   const router = useRouter();
+  const selectedSlot = String(params.slot || 'ALL').toUpperCase();
 
   const load = useCallback(async (asRefresh = false) => {
     if (asRefresh) setRefreshing(true);
@@ -41,13 +44,21 @@ export default function TodaysMenuScreen() {
   const filteredItems = useMemo(() => {
     const list = menu?.items || [];
     const q = debouncedSearch.trim().toLowerCase();
-    if (!q) return list;
-    return list.filter((i: any) => {
+    const menuSlots = String(menu?.mealSlots || 'ALL')
+      .split(',')
+      .map((s: string) => s.trim().toUpperCase())
+      .filter(Boolean);
+    const slotAllowed = selectedSlot === 'ALL' || menuSlots.includes('ALL') || menuSlots.includes(selectedSlot);
+    if (!slotAllowed) return [];
+
+    const slotFiltered = list;
+    if (!q) return slotFiltered;
+    return slotFiltered.filter((i: any) => {
       const name = String(i?.name || '').toLowerCase();
       const category = String(i?.category || '').toLowerCase();
       return name.includes(q) || category.includes(q);
     });
-  }, [menu, debouncedSearch]);
+  }, [menu, debouncedSearch, selectedSlot]);
 
   const visibleItems = useMemo(() => paginate(filteredItems, page), [filteredItems, page]);
 
@@ -57,7 +68,9 @@ export default function TodaysMenuScreen() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
     >
-      <Text style={styles.title}>{menu?.title || "Today's Menu"}</Text>
+      <Text style={styles.title}>
+        {menu?.title || "Today's Menu"} <Text style={styles.titleMeta}>({selectedSlot})</Text>
+      </Text>
       <TextInput value={search} onChangeText={setSearch} placeholder="Search menu items" style={styles.search} />
       {loading
         ? Array.from({ length: 4 }).map((_, idx) => (
@@ -81,7 +94,7 @@ export default function TodaysMenuScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{item.name}</Text>
             <Text style={styles.meta}>{item.category}</Text>
-            <Text style={styles.price}>Rs {item.price}</Text>
+            <Text style={styles.price}>{formatCurrency(Number(item.price || 0))}</Text>
           </View>
         </Pressable>
       ))}
@@ -98,6 +111,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
   content: { padding: 16, paddingBottom: 26 },
   title: { fontSize: 24, fontWeight: '900' , textAlign: 'center'},
+  titleMeta: { fontSize: 13, color: COLORS.muted, fontWeight: '700' },
   search: { marginTop: 10, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11 },
   empty: { color: COLORS.muted, marginTop: 12 },
   card: { backgroundColor: '#fff', borderRadius: 14, padding: 10, marginTop: 10, flexDirection: 'row', alignItems: 'center' },

@@ -7,6 +7,7 @@ import { COLORS } from '../../src/config/appConfig';
 import { useAuth } from '../../src/context/AuthContext';
 import { LoadingButton } from '../../src/components/LoadingButton';
 import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
+import { KeyboardScreen } from '../../src/components/KeyboardScreen';
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -64,7 +65,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container} {...topPullResponder.panHandlers}>
+    <KeyboardScreen containerStyle={styles.container} contentContainerStyle={styles.content} {...topPullResponder.panHandlers}>
       <StatusBar style="light" backgroundColor={COLORS.accent} translucent hidden={statusBarHidden} />
       <Pressable style={[styles.skipBtn, { top: insets.top + 8 }]} onPress={() => router.replace('/home')}>
         <Text style={styles.skipText}>Skip</Text>
@@ -86,18 +87,22 @@ export default function LoginScreen() {
           <Text style={styles.toggleText}>{showPassword ? 'Hide' : 'Show'}</Text>
         </Pressable>
       </View>
+      <Pressable onPress={() => {}}>
+        <Text style={styles.forgot}>Forgot Password?</Text>
+      </Pressable>
 
       {!!error && <Text style={styles.error}>{error}</Text>}
 
       <LoadingButton title="Login" loadingTitle="Submitting" loading={submitting} onPress={handleLogin} />
 
       <Link href="/auth/signup" style={styles.link}>Create account</Link>
-    </View>
+    </KeyboardScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, padding: 24, justifyContent: 'center' },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  content: { padding: 24, justifyContent: 'center' },
   skipBtn: {
     position: 'absolute',
     right: 16,
@@ -122,6 +127,7 @@ const styles = StyleSheet.create({
   passwordInput: { flex: 1, paddingHorizontal: 8, paddingVertical: 12 },
   toggleBtn: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: '#f0f0f0' },
   toggleText: { color: COLORS.text, fontWeight: '700', fontSize: 12 },
+  forgot: { color: COLORS.accent, textAlign: 'right', fontWeight: '700', marginBottom: 10 },
   link: { marginTop: 14, color: COLORS.accent, fontWeight: '700' },
   error: { color: COLORS.danger, marginBottom: 8 },
 });

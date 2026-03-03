@@ -8,6 +8,7 @@ import { hasMore, paginate } from '../src/utils/pagination';
 import { useAuth } from '../src/context/AuthContext';
 import { AppTextInput as TextInput } from '../src/components/AppTextInput';
 import { Skeleton } from '../src/components/Skeleton';
+import { formatCurrency } from '../src/utils/format';
 
 export default function OrdersScreen() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -25,7 +26,7 @@ export default function OrdersScreen() {
   const debouncedSearch = useDebouncedValue(search, 350);
   const { token, user } = useAuth();
   const router = useRouter();
-  const isDeliveryPartner = user?.role === 'DELIVERY_PARTNER';
+  const isDeliveryPartner = user?.role === 'DELIVERY_PARTNER' && (user?.deliveryModeActive ?? true);
 
   const loadOrders = useCallback(async (asRefresh = false) => {
     if (!token) {
@@ -38,12 +39,7 @@ export default function OrdersScreen() {
     try {
       setError('');
       const list = isDeliveryPartner ? await api.myAssignedOrders() : await api.myOrders();
-      const normalized = list || [];
-      setOrders(
-        isDeliveryPartner
-          ? normalized.filter((o: any) => String(o?.status || '').toUpperCase() === 'DELIVERED')
-          : normalized
-      );
+      setOrders(list || []);
     } catch (e: any) {
       setOrders([]);
       setError(e?.response?.data?.message || `Unable to load orders (${e?.response?.status || 'NO_STATUS'})`);
@@ -97,7 +93,7 @@ export default function OrdersScreen() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadOrders(true)} />}
     >
-      <Text style={styles.title}>{isDeliveryPartner ? 'Delivered Orders' : 'Orders'}</Text>
+      <Text style={styles.title}>{isDeliveryPartner ? 'Driver Orders' : 'My Orders'}</Text>
       <TextInput
         value={search}
         onChangeText={setSearch}
@@ -114,7 +110,28 @@ export default function OrdersScreen() {
             </View>
           ))
         : null}
-      {!loading && !filtered.length ? <Text style={styles.empty}>{isDeliveryPartner ? 'No attended/delivered orders found.' : 'No orders found.'}</Text> : null}
+      {!loading && isDeliveryPartner ? (
+        <View style={styles.driverSummaryRow}>
+          <View style={[styles.driverSummaryCard, styles.driverSummaryCardPrimary]}>
+            <Text style={styles.driverSummaryLabel}>Today&apos;s Earnings</Text>
+            <Text style={styles.driverSummaryValue}>
+              {formatCurrency(
+                filtered
+                  .filter((o) => String(o.status || '').toUpperCase() === 'DELIVERED')
+                  .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0)
+              )}
+            </Text>
+          </View>
+          <View style={[styles.driverSummaryCard, styles.driverSummaryCardSecondary]}>
+            <Text style={styles.driverSummaryLabelDark}>Completed</Text>
+            <Text style={styles.driverSummaryValueDark}>
+              {filtered.filter((o) => String(o.status || '').toUpperCase() === 'DELIVERED').length}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+      {!loading && isDeliveryPartner ? <Text style={styles.assignedHeading}>Assigned Orders</Text> : null}
+      {!loading && !filtered.length ? <Text style={styles.empty}>{isDeliveryPartner ? 'No assigned orders found.' : 'No orders found.'}</Text> : null}
       {visible.map((order) => {
         const orderKey = order.orderId || String(order.id);
         const closed = isClosedStatus(order.status);
@@ -127,7 +144,7 @@ export default function OrdersScreen() {
                 <Text style={styles.id}>{order.orderId}</Text>
                 <Text style={styles.statusPill}>{order.status}</Text>
               </View>
-              <Text style={styles.amount}>Rs {order.totalAmount}</Text>
+              <Text style={styles.amount}>{formatCurrency(Number(order.totalAmount || 0))}</Text>
               <Text style={styles.minHint}>Tap to view</Text>
             </Pressable>
           );
@@ -139,12 +156,12 @@ export default function OrdersScreen() {
             <Text style={styles.id}>{order.orderId}</Text>
             <Text style={styles.statusPill}>{order.status}</Text>
           </View>
-          <Text style={styles.amount}>Rs {order.totalAmount}</Text>
+          <Text style={styles.amount}>{formatCurrency(Number(order.totalAmount || 0))}</Text>
           {isDeliveryPartner ? (
             <>
-              <Text style={styles.meta}><Text style={styles.metaLabel}>User:</Text> {order.customerName || 'N/A'}</Text>
-              <Text style={styles.meta}><Text style={styles.metaLabel}>Address:</Text> {order.addressLine || 'N/A'}</Text>
-              <Text style={styles.meta}><Text style={styles.metaLabel}>Flat/Society:</Text> {order.flatNumber || '-'}, {order.apartmentOrSociety || '-'}</Text>
+              <Text style={styles.meta}><Text style={styles.metaLabel}>Customer:</Text> {order.customerName || 'N/A'}</Text>
+              <Text style={styles.meta}><Text style={styles.metaLabel}>Delivery:</Text> {order.addressLine || 'N/A'}</Text>
+              <Text style={styles.meta}><Text style={styles.metaLabel}>Distance:</Text> {Number(order.distanceKm || 0).toFixed(1)} km</Text>
               {!closed ? (
                 <>
                   <View style={styles.actionRow}>
@@ -159,6 +176,25 @@ export default function OrdersScreen() {
                       <Text style={styles.callText}>Call User</Text>
                     </Pressable>
                   </View>
+                  {order.status === 'CONFIRMED' && !order.deliveryAccepted ? (
+                    <Pressable
+                      style={[styles.verifyBtn, verifyingOrderId === order.orderId && styles.disabledBtn]}
+                      disabled={verifyingOrderId === order.orderId}
+                      onPress={async () => {
+                        setVerifyingOrderId(order.orderId);
+                        try {
+                          await api.acceptAssignedOrder(order.orderId);
+                          await loadOrders(true);
+                        } catch (e: any) {
+                          setError(e?.response?.data?.message || `Unable to accept delivery (${e?.response?.status || 'NO_STATUS'})`);
+                        } finally {
+                          setVerifyingOrderId(null);
+                        }
+                      }}
+                    >
+                      <Text style={styles.verifyText}>{verifyingOrderId === order.orderId ? 'Accepting...' : 'Accept Delivery Request'}</Text>
+                    </Pressable>
+                  ) : null}
                   {order.status === 'OUT_FOR_DELIVERY' ? (
                     <>
                       <TextInput
@@ -193,7 +229,7 @@ export default function OrdersScreen() {
                 </>
               ) : (
                 <Pressable style={styles.detailsBtn} onPress={() => openOrderDetails(order.orderId)}>
-                  <Text style={styles.detailsText}>Order Details</Text>
+                  <Text style={styles.detailsText}>View Details</Text>
                 </Pressable>
               )}
             </>
@@ -231,7 +267,7 @@ export default function OrdersScreen() {
               <ScrollView style={{ maxHeight: 380 }}>
                 <Text style={styles.modalMeta}><Text style={styles.modalLabel}>Order ID:</Text> {detailsOrder.orderId}</Text>
                 <Text style={styles.modalMeta}><Text style={styles.modalLabel}>Status:</Text> {detailsOrder.status}</Text>
-                <Text style={styles.modalMeta}><Text style={styles.modalLabel}>Amount:</Text> Rs {detailsOrder.totalAmount}</Text>
+                <Text style={styles.modalMeta}><Text style={styles.modalLabel}>Amount:</Text> {formatCurrency(Number(detailsOrder.totalAmount || 0))}</Text>
                 <Text style={styles.modalMeta}><Text style={styles.modalLabel}>Address:</Text> {detailsOrder.addressLine}</Text>
                 <Text style={styles.modalMeta}><Text style={styles.modalLabel}>Flat/Society:</Text> {detailsOrder.flatNumber}, {detailsOrder.apartmentOrSociety}</Text>
                 {(detailsOrder.items || []).length ? (
@@ -239,7 +275,7 @@ export default function OrdersScreen() {
                     <Text style={styles.modalItemsTitle}>Items</Text>
                     {(detailsOrder.items || []).map((it: any, idx: number) => (
                       <Text key={`it-${idx}`} style={styles.modalMeta}>
-                        {idx + 1}. {it.itemName} x{it.quantity} - Rs {it.totalPrice}
+                        {idx + 1}. {it.itemName} x{it.quantity} - {formatCurrency(Number(it.totalPrice || 0))}
                       </Text>
                     ))}
                   </>
@@ -260,6 +296,15 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
   content: { padding: 16, paddingBottom: 26 },
   title: { fontSize: 24, fontWeight: '900' , textAlign: 'center'},
+  driverSummaryRow: { flexDirection: 'row', gap: 10, marginTop: 10, marginBottom: 8 },
+  driverSummaryCard: { flex: 1, borderRadius: 14, padding: 12 },
+  driverSummaryCardPrimary: { backgroundColor: '#7E5A51' },
+  driverSummaryCardSecondary: { backgroundColor: '#F3D5C9' },
+  driverSummaryLabel: { color: '#F6E8E2', fontWeight: '700', marginBottom: 8 },
+  driverSummaryValue: { color: '#fff', fontSize: 23, fontWeight: '900' },
+  driverSummaryLabelDark: { color: '#8C5A4E', fontWeight: '700', marginBottom: 8 },
+  driverSummaryValueDark: { color: '#5B2222', fontSize: 32, fontWeight: '900' },
+  assignedHeading: { fontSize: 35, fontWeight: '800', color: COLORS.text, marginTop: 2, marginBottom: 2 },
   search: { marginTop: 10, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11 },
   empty: { color: COLORS.muted, marginTop: 12 },
   error: { color: COLORS.danger, marginTop: 8 },

@@ -11,7 +11,7 @@ export default function PaymentScreen() {
   const params = useLocalSearchParams<{ addressLine: string; apartmentOrSociety: string; flatNumber: string; latitude: string; longitude: string }>();
   const [method, setMethod] = useState<'COD' | 'UPI'>('COD');
   const [placing, setPlacing] = useState(false);
-  const { items, clearCart } = useCart();
+  const { items, clearCart, bookingDate, bookingSlot } = useCart();
   const router = useRouter();
 
   const parseCoord = (value: string | undefined, fallback: number) => {
@@ -43,6 +43,8 @@ export default function PaymentScreen() {
         flatNumber: params.flatNumber,
         latitude: liveCoords.latitude,
         longitude: liveCoords.longitude,
+        orderDate: bookingDate,
+        orderSlot: bookingSlot,
         paymentMethod: method,
         notes: `Razorpay key: ${RAZORPAY_KEY}, Stripe key: ${STRIPE_KEY}`,
         items: items.map((i) => ({ ...i, unitPrice: i.unitPrice })),

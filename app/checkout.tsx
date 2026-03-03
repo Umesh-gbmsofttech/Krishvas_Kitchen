@@ -1,9 +1,10 @@
 import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import { COLORS } from '../src/config/appConfig';
 import { AppTextInput as TextInput } from '../src/components/AppTextInput';
+import { KeyboardScreen } from '../src/components/KeyboardScreen';
 
 export default function CheckoutScreen() {
   const [addressLine, setAddressLine] = useState('');
@@ -76,7 +77,7 @@ export default function CheckoutScreen() {
   }, []);
 
   return (
-    <View style={styles.screen}>
+    <KeyboardScreen containerStyle={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Checkout Address</Text>
       <TextInput style={styles.input} value={addressLine} onChangeText={setAddressLine} placeholder="Address line" editable={false} />
       <TextInput style={styles.input} value={apartmentOrSociety} onChangeText={setApartmentOrSociety} placeholder="Apartment / Society" />
@@ -90,12 +91,13 @@ export default function CheckoutScreen() {
       >
         <Text style={styles.btnText}>{fetchingLiveLocation ? 'Fetching live location...' : 'Continue to Payment'}</Text>
       </Pressable>
-    </View>
+    </KeyboardScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: COLORS.bg, padding: 16 },
+  screen: { flex: 1, backgroundColor: COLORS.bg },
+  content: { padding: 16 },
   title: { fontSize: 26, fontWeight: '900', marginBottom: 12 , textAlign: 'center'},
   input: { backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 10 },
   error: { color: COLORS.danger, marginTop: 2, marginBottom: 8 },

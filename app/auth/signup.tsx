@@ -9,6 +9,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { api } from '../../src/services/api';
 import { LoadingButton } from '../../src/components/LoadingButton';
 import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
+import { KeyboardScreen } from '../../src/components/KeyboardScreen';
 
 export default function SignupScreen() {
   const { signup, refreshProfile } = useAuth();
@@ -18,7 +19,12 @@ export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [signupRole, setSignupRole] = useState<'CUSTOMER' | 'DRIVER'>('CUSTOMER');
+  const [vehicleType, setVehicleType] = useState('');
+  const [vehicleNumber, setVehicleNumber] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [profileImageUri, setProfileImageUri] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -72,10 +78,28 @@ export default function SignupScreen() {
     try {
       setSubmitting(true);
       setError('');
+      if (!fullName.trim() || !email.trim() || !password.trim()) {
+        setError('Please fill all required fields.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('Password and confirm password must match.');
+        return;
+      }
+      if (signupRole === 'DRIVER' && (!vehicleType.trim() || !vehicleNumber.trim())) {
+        setError('Vehicle type and number are required for Driver signup.');
+        return;
+      }
       await signup({ fullName: fullName.trim(), email: email.trim(), password, phone: phone.trim() });
       if (profileImageUri) {
         await api.uploadProfileImage({ uri: profileImageUri, name: `profile-${Date.now()}.jpg`, type: 'image/jpeg' });
         await refreshProfile();
+      }
+      if (signupRole === 'DRIVER') {
+        await api.applyDelivery({
+          vehicleType: vehicleType.trim(),
+          vehicleNumber: vehicleNumber.trim(),
+        });
       }
       router.replace('/home');
     } catch (e: any) {
@@ -86,7 +110,7 @@ export default function SignupScreen() {
   };
 
   return (
-    <View style={styles.container} {...topPullResponder.panHandlers}>
+    <KeyboardScreen containerStyle={styles.container} contentContainerStyle={styles.content} {...topPullResponder.panHandlers}>
       <StatusBar style="light" backgroundColor={COLORS.accent} translucent hidden={statusBarHidden} />
       <Pressable style={[styles.skipBtn, { top: insets.top + 8 }]} onPress={() => router.replace('/home')}>
         <Text style={styles.skipText}>Skip</Text>
@@ -114,15 +138,44 @@ export default function SignupScreen() {
           <Text style={styles.toggleText}>{showPassword ? 'Hide' : 'Show'}</Text>
         </Pressable>
       </View>
+      <View style={styles.passwordRow}>
+        <TextInput
+          style={styles.passwordInput}
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          placeholder="Confirm Password"
+          secureTextEntry={!showConfirmPassword}
+        />
+        <Pressable style={styles.toggleBtn} onPress={() => setShowConfirmPassword((v) => !v)}>
+          <Text style={styles.toggleText}>{showConfirmPassword ? 'Hide' : 'Show'}</Text>
+        </Pressable>
+      </View>
+
+      <Text style={styles.roleTitle}>Select Your Role</Text>
+      <Pressable style={[styles.roleCard, signupRole === 'CUSTOMER' && styles.roleCardActive]} onPress={() => setSignupRole('CUSTOMER')}>
+        <Text style={styles.roleCardTitle}>Customer</Text>
+        <Text style={styles.roleCardSub}>Order meals and track deliveries</Text>
+      </Pressable>
+      <Pressable style={[styles.roleCard, signupRole === 'DRIVER' && styles.roleCardActive]} onPress={() => setSignupRole('DRIVER')}>
+        <Text style={styles.roleCardTitle}>Driver / Delivery Partner</Text>
+        <Text style={styles.roleCardSub}>Deliver orders to customers</Text>
+      </Pressable>
+      {signupRole === 'DRIVER' ? (
+        <>
+          <TextInput style={styles.input} value={vehicleType} onChangeText={setVehicleType} placeholder="Vehicle Type" />
+          <TextInput style={styles.input} value={vehicleNumber} onChangeText={setVehicleNumber} placeholder="Vehicle Number" />
+        </>
+      ) : null}
 
       {!!error && <Text style={styles.error}>{error}</Text>}
       <LoadingButton title="Signup" loadingTitle="Submitting" loading={submitting} onPress={handleSignup} />
-    </View>
+    </KeyboardScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, padding: 24, justifyContent: 'center' },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  content: { padding: 24, justifyContent: 'center' },
   skipBtn: {
     position: 'absolute',
     right: 16,
@@ -149,6 +202,22 @@ const styles = StyleSheet.create({
   passwordInput: { flex: 1, paddingHorizontal: 8, paddingVertical: 12 },
   toggleBtn: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: '#f0f0f0' },
   toggleText: { color: COLORS.text, fontWeight: '700', fontSize: 12 },
+  roleTitle: { marginTop: 2, marginBottom: 8, color: COLORS.text, fontWeight: '800' },
+  roleCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
+    borderWidth: 1.2,
+    borderColor: '#D9D9D9',
+  },
+  roleCardActive: {
+    borderColor: COLORS.accent,
+    backgroundColor: COLORS.accentSoft,
+  },
+  roleCardTitle: { fontWeight: '800', color: COLORS.text },
+  roleCardSub: { marginTop: 2, color: COLORS.muted, fontSize: 12 },
   error: { color: COLORS.danger, marginBottom: 8 },
 });
 

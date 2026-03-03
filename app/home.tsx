@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../src/services/api';
@@ -13,6 +13,8 @@ import { BannerCarousel } from '../src/components/BannerCarousel';
 import { AnimatedHeading } from '../src/components/AnimatedHeading';
 import { AppTextInput as TextInput } from '../src/components/AppTextInput';
 import { Skeleton } from '../src/components/Skeleton';
+import { formatCurrency } from '../src/utils/format';
+import { WeekDateStrip } from '../src/components/WeekDateStrip';
 
 export default function HomeScreen() {
   const [menu, setMenu] = useState<any>(null);
@@ -22,9 +24,13 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [activeFilter, setActiveFilter] = useState('ALL');
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [selectedMealSlot, setSelectedMealSlot] = useState<'ALL' | 'BREAKFAST' | 'LUNCH' | 'DINNER'>('ALL');
+  const [dateOverlayVisible, setDateOverlayVisible] = useState(false);
+  const [next7Menus, setNext7Menus] = useState<any[]>([]);
   const [justAddedById, setJustAddedById] = useState<Record<string, boolean>>({});
   const debouncedQuery = useDebouncedValue(query, 350);
-  const { addItem } = useCart();
+  const { addItem, setBooking } = useCart();
   const { user } = useAuth();
   const router = useRouter();
 
@@ -32,7 +38,7 @@ export default function HomeScreen() {
     if (asRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [dailyRes, bannersRes] = await Promise.allSettled([api.dailyMenu(), api.banners()]);
+      const [dailyRes, bannersRes, next7Res] = await Promise.allSettled([api.dailyMenu(selectedDate), api.banners(), api.next7Menus()]);
       if (dailyRes.status === 'fulfilled') {
         setMenu(dailyRes.value || null);
       } else {
@@ -43,11 +49,16 @@ export default function HomeScreen() {
       } else {
         setBanners([]);
       }
+      if (next7Res.status === 'fulfilled') {
+        setNext7Menus(Array.isArray(next7Res.value) ? next7Res.value : []);
+      } else {
+        setNext7Menus([]);
+      }
     } finally {
       if (asRefresh) setRefreshing(false);
       else setLoading(false);
     }
-  }, []);
+  }, [selectedDate]);
 
   useEffect(() => {
     load(false).catch(() => setLoading(false));
@@ -64,17 +75,50 @@ export default function HomeScreen() {
 
   const filteredItems = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
+    const menuSlots = String(menu?.mealSlots || 'ALL')
+      .split(',')
+      .map((s: string) => s.trim().toUpperCase())
+      .filter(Boolean);
+    const slotAllowed = selectedMealSlot === 'ALL' || menuSlots.includes('ALL') || menuSlots.includes(selectedMealSlot);
+    if (!slotAllowed) return [];
     return (menu?.items || []).filter((i: any) => {
       const filterOk = activeFilter === 'ALL' || i.category === activeFilter;
       const name = String(i?.name || '').toLowerCase();
       const searchOk = !q || name.includes(q);
       return filterOk && searchOk;
     });
-  }, [menu, debouncedQuery, activeFilter]);
+  }, [menu, debouncedQuery, activeFilter, selectedMealSlot]);
 
   const visibleItems = useMemo(() => paginate(filteredItems, page), [filteredItems, page]);
+  const mealCards = [
+    {
+      key: 'breakfast',
+      title: 'Breakfast',
+      subtitle: 'Start your day fresh',
+      time: '7:00 AM - 10:00 AM',
+      bg: '#E84B1E',
+      icon: 'cafe-outline' as const,
+    },
+    {
+      key: 'lunch',
+      title: 'Lunch',
+      subtitle: 'Delicious midday meals',
+      time: '12:00 PM - 3:00 PM',
+      bg: '#7B5B51',
+      icon: 'restaurant-outline' as const,
+    },
+    {
+      key: 'dinner',
+      title: 'Dinner',
+      subtitle: 'End your day right',
+      time: '7:00 PM - 10:00 PM',
+      bg: '#7A6A2C',
+      icon: 'moon-outline' as const,
+    },
+  ];
   const profileUri = resolveImageUrl(user?.profileImageUrl);
   const onAdd = (item: any) => {
+    setBooking(selectedDate, selectedMealSlot);
     addItem({
       menuItemId: item.id,
       itemName: item.name,
@@ -125,7 +169,63 @@ export default function HomeScreen() {
         ))}
       </ScrollView>
 
-      <AnimatedHeading text={menu?.title || 'Daily Menu'} />
+      <View style={styles.slotRow}>
+        {(['ALL', 'BREAKFAST', 'LUNCH', 'DINNER'] as const).map((slot) => (
+          <Pressable
+            key={slot}
+            style={[styles.slotChip, selectedMealSlot === slot && styles.slotChipActive]}
+            onPress={() => setSelectedMealSlot(slot)}
+          >
+            <Text style={[styles.slotChipTxt, selectedMealSlot === slot && styles.slotChipTxtActive]}>{slot}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <View style={styles.todayCard}>
+        <View>
+          <Text style={styles.todayTitle}>Today</Text>
+          <Text style={styles.todaySub}>
+            {new Date(`${selectedDate}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' })}
+          </Text>
+        </View>
+        <Pressable style={styles.todayChangeBtn} onPress={() => setDateOverlayVisible(true)}>
+          <Text style={styles.todayChangeTxt}>Change</Text>
+        </Pressable>
+      </View>
+
+      <Text style={styles.mealHeading}>What would you like to order?</Text>
+      <Text style={styles.mealSub}>Choose a meal type for today</Text>
+      {mealCards.map((meal) => (
+        <Pressable
+          key={meal.key}
+          style={[styles.mealCard, { backgroundColor: meal.bg }]}
+          onPress={() =>
+            router.push({
+              pathname: '/todays-menu',
+              params: { slot: meal.key.toUpperCase() },
+            })
+          }
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.mealTitle}>{meal.title}</Text>
+            <Text style={styles.mealDesc}>{meal.subtitle}</Text>
+            <Text style={styles.mealTime}>{meal.time}</Text>
+          </View>
+          <View style={styles.mealIconWrap}>
+            <Ionicons name={meal.icon} size={22} color="#fff" />
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#fff" />
+        </Pressable>
+      ))}
+
+      <View style={styles.infoBanner}>
+        <Text style={styles.infoText}>Fresh, homemade meals prepared with love. You can order meals up to 7 days in advance.</Text>
+      </View>
+
+      <View style={styles.menuHeadingRow}>
+        <AnimatedHeading text={menu?.title || 'Today Menu'} />
+        <Text style={styles.menuSlotTag}>({selectedMealSlot})</Text>
+      </View>
       {loading
         ? Array.from({ length: 4 }).map((_, idx) => (
             <View key={`home-skeleton-${idx}`} style={styles.itemCard}>
@@ -148,7 +248,7 @@ export default function HomeScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.itemName}>{item.name}</Text>
             <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
-            <Text style={styles.itemPrice}>Rs {item.price}</Text>
+            <Text style={styles.itemPrice}>{formatCurrency(Number(item.price || 0))}</Text>
           </View>
           <Pressable
             onPress={() => onAdd(item)}
@@ -169,6 +269,29 @@ export default function HomeScreen() {
         </Pressable>
       ) : null}
 
+      <Modal visible={dateOverlayVisible} transparent animationType="fade" onRequestClose={() => setDateOverlayVisible(false)}>
+        <View style={styles.overlayBackdrop}>
+          <View style={styles.overlayCard}>
+            <Text style={styles.overlayTitle}>Select Date (up to 7 days)</Text>
+            <WeekDateStrip value={selectedDate} onChange={setSelectedDate} />
+            <ScrollView style={{ maxHeight: 240, marginTop: 8 }}>
+              {next7Menus.map((m) => (
+                <Pressable
+                  key={`menu-day-${m.id}`}
+                  style={[styles.dayMenuCard, m.scheduleDate === selectedDate && styles.dayMenuCardActive]}
+                  onPress={() => setSelectedDate(m.scheduleDate)}
+                >
+                  <Text style={styles.dayMenuTitle}>{m.title}</Text>
+                  <Text style={styles.dayMenuMeta}>{m.scheduleDate} | {m.mealSlots || 'ALL'}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Pressable style={styles.overlayBtn} onPress={() => setDateOverlayVisible(false)}>
+              <Text style={styles.overlayBtnTxt}>Done</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -193,6 +316,57 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: COLORS.accentSoft },
   chipText: { fontWeight: '600', color: COLORS.text },
   chipTextActive: { color: COLORS.accent },
+  slotRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  slotChip: { backgroundColor: '#fff', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
+  slotChipActive: { backgroundColor: COLORS.accent },
+  slotChipTxt: { color: COLORS.text, fontWeight: '700', fontSize: 12 },
+  slotChipTxtActive: { color: '#fff' },
+  todayCard: {
+    backgroundColor: '#F5DCD0',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  todayTitle: { color: COLORS.text, fontSize: 20, fontWeight: '800' },
+  todaySub: { color: COLORS.muted, marginTop: 2, fontWeight: '600' },
+  todayChangeBtn: {
+    backgroundColor: COLORS.accent,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  todayChangeTxt: { color: '#fff', fontWeight: '700' },
+  mealHeading: { fontSize: 40, fontWeight: '900', color: COLORS.text, marginBottom: 4 },
+  mealSub: { color: COLORS.muted, marginBottom: 12, fontWeight: '600' },
+  mealCard: {
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  mealTitle: { color: '#fff', fontSize: 34, fontWeight: '900' },
+  mealDesc: { color: '#fff', opacity: 0.95, marginTop: 2 },
+  mealTime: { color: '#fff', opacity: 0.95, marginTop: 6, fontWeight: '700' },
+  mealIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginRight: 2,
+  },
+  infoBanner: { backgroundColor: '#F5DCD0', borderRadius: 12, padding: 12, marginBottom: 12 },
+  infoText: { color: '#6F5750', fontWeight: '600' },
+  menuHeadingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  menuSlotTag: { color: COLORS.muted, fontWeight: '700' },
   heading: { fontSize: 24, fontWeight: '900', marginVertical: 10, color: COLORS.text, textAlign: 'center' },
   itemCard: { backgroundColor: '#fff', borderRadius: 16, padding: 10, marginBottom: 12, flexDirection: 'row', alignItems: 'center' },
   itemImage: { width: 88, height: 88, borderRadius: 12, marginRight: 10 },
@@ -208,4 +382,13 @@ const styles = StyleSheet.create({
   skelBtn: { width: 52, height: 32, borderRadius: 10 },
   more: { backgroundColor: '#fff', borderRadius: 10, alignItems: 'center', paddingVertical: 10, marginBottom: 10 },
   moreText: { color: COLORS.text, fontWeight: '700' },
+  overlayBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.38)', justifyContent: 'center', padding: 14 },
+  overlayCard: { backgroundColor: '#fff', borderRadius: 14, padding: 12 },
+  overlayTitle: { fontWeight: '900', color: COLORS.text, textAlign: 'center', marginBottom: 6 },
+  dayMenuCard: { borderRadius: 10, borderWidth: 1, borderColor: '#EEE', padding: 10, marginBottom: 8 },
+  dayMenuCardActive: { borderColor: COLORS.accent, backgroundColor: COLORS.accentSoft },
+  dayMenuTitle: { fontWeight: '800', color: COLORS.text },
+  dayMenuMeta: { color: COLORS.muted, marginTop: 2, fontSize: 12 },
+  overlayBtn: { marginTop: 8, borderRadius: 10, backgroundColor: COLORS.accent, alignItems: 'center', paddingVertical: 10 },
+  overlayBtnTxt: { color: '#fff', fontWeight: '800' },
 });

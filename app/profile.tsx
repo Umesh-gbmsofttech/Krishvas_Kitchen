@@ -1,7 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/context/AuthContext';
 import { COLORS } from '../src/config/appConfig';
@@ -15,9 +15,16 @@ export default function ProfileScreen() {
   const router = useRouter();
 
   const isAdmin = user?.role === 'ADMIN';
-  const isDeliveryPartner = user?.role === 'DELIVERY_PARTNER' || user?.deliveryBadge;
+  const isDeliveryPartnerApproved = user?.role === 'DELIVERY_PARTNER' || user?.deliveryBadge;
+  const isDeliveryModeActive = Boolean(user?.deliveryModeActive ?? true);
   const [adminStats, setAdminStats] = useState<any>({});
-  const [deliveryData, setDeliveryData] = useState<any>({});
+  const [adminSettings, setAdminSettings] = useState<{ kitchenActive: boolean; darkMode: boolean }>({
+    kitchenActive: true,
+    darkMode: false,
+  });
+  const [updatingAdminSettings, setUpdatingAdminSettings] = useState(false);
+  const [deliveryRequestStatus, setDeliveryRequestStatus] = useState<string | null>(null);
+  const [updatingDeliveryMode, setUpdatingDeliveryMode] = useState(false);
 
   const [editVisible, setEditVisible] = useState(false);
   const [logoutVisible, setLogoutVisible] = useState(false);
@@ -27,7 +34,6 @@ export default function ProfileScreen() {
   const [fullName, setFullName] = useState(user?.fullName || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
-  const goOrdersAnim = useRef(new Animated.Value(1)).current;
 
   const openEdit = () => {
     setError('');
@@ -83,47 +89,62 @@ export default function ProfileScreen() {
 
   const profileUri = resolveImageUrl(user?.profileImageUrl);
   const previewUri = selectedImageUri || profileUri;
-  const adminActions = [
-    { label: 'Menu Scheduler', icon: 'calendar-outline' as const, route: '/admin/menu-scheduler' },
-    { label: 'Carousel Images', icon: 'images-outline' as const, route: '/admin/carousel-management' },
-    { label: 'Orders', icon: 'receipt-outline' as const, route: '/admin/orders-management' },
-    { label: 'Users', icon: 'people-outline' as const, route: '/admin/users-list' },
-    { label: 'Approvals', icon: 'checkmark-done-outline' as const, route: '/admin/delivery-approvals' },
-    { label: 'Reports', icon: 'bar-chart-outline' as const, route: '/admin/reports' },
+  const adminQuickActions = [
+    { label: 'Manage Menu', icon: 'restaurant-outline' as const, route: '/admin/menu-scheduler' },
+    { label: 'Driver (Delivery partner)', icon: 'bicycle-outline' as const, route: '/admin/delivery-approvals' },
+    { label: 'View Orders', icon: 'receipt-outline' as const, route: '/admin/orders-management' },
   ];
 
   useEffect(() => {
     if (!isAdmin) return;
     api.adminDashboard().then(setAdminStats).catch(() => {});
+    api.adminSettings().then((s) => {
+      setAdminSettings({
+        kitchenActive: Boolean(s?.kitchenActive),
+        darkMode: Boolean(s?.darkMode),
+      });
+    }).catch(() => {});
   }, [isAdmin]);
 
   useEffect(() => {
-    if (!isDeliveryPartner) return;
-    api.deliveryDashboard().then(setDeliveryData).catch(() => {});
-  }, [isDeliveryPartner]);
+    if (isAdmin || isDeliveryPartnerApproved) return;
+    api
+      .myDeliveryStatus()
+      .then((res) => setDeliveryRequestStatus(res?.status ? String(res.status).toUpperCase() : null))
+      .catch(() => setDeliveryRequestStatus(null));
+  }, [isAdmin, isDeliveryPartnerApproved]);
 
-  const activeAssignedOrdersCount = useMemo(
-    () =>
-      (deliveryData.deliveries || []).filter((o: any) =>
-        ['PLACED', 'CONFIRMED', 'PREPARING', 'OUT_FOR_DELIVERY'].includes(String(o?.status || ''))
-      ).length,
-    [deliveryData.deliveries]
-  );
+  const toggleDeliveryMode = async () => {
+    if (!isDeliveryPartnerApproved || updatingDeliveryMode) return;
+    try {
+      setUpdatingDeliveryMode(true);
+      await api.updateDeliveryMode(!isDeliveryModeActive);
+      await refreshProfile();
+    } finally {
+      setUpdatingDeliveryMode(false);
+    }
+  };
 
-  useEffect(() => {
-    if (!isDeliveryPartner || activeAssignedOrdersCount <= 0) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(goOrdersAnim, { toValue: 1.06, duration: 550, useNativeDriver: true }),
-        Animated.timing(goOrdersAnim, { toValue: 1, duration: 550, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => {
-      loop.stop();
-      goOrdersAnim.setValue(1);
-    };
-  }, [isDeliveryPartner, activeAssignedOrdersCount, goOrdersAnim]);
+  const updateAdminSettings = async (patch: Partial<{ kitchenActive: boolean; darkMode: boolean }>) => {
+    if (updatingAdminSettings) return;
+    const previous = adminSettings;
+    const optimistic = { ...adminSettings, ...patch };
+    setAdminSettings(optimistic);
+    try {
+      setUpdatingAdminSettings(true);
+      const saved = await api.updateAdminSettings(patch);
+      setAdminSettings({
+        kitchenActive: Boolean(saved?.kitchenActive),
+        darkMode: Boolean(saved?.darkMode),
+      });
+      const dashboard = await api.adminDashboard();
+      setAdminStats(dashboard || {});
+    } catch {
+      setAdminSettings(previous);
+    } finally {
+      setUpdatingAdminSettings(false);
+    }
+  };
 
   return (
     <>
@@ -133,7 +154,20 @@ export default function ProfileScreen() {
           <Text style={styles.name}>{user?.fullName}</Text>
           <Text>{user?.email}</Text>
           <Text style={styles.role}>Role: {user?.role}</Text>
-          {user?.role === 'DELIVERY_PARTNER' || user?.deliveryBadge ? <Text style={styles.badge}>Delivery Partner Approved</Text> : null}
+          {isDeliveryPartnerApproved ? <Text style={styles.badge}>Delivery Partner Approved</Text> : null}
+          {isDeliveryPartnerApproved ? (
+            <View style={styles.modeRow}>
+              <Text style={styles.modeLabel}>Customer</Text>
+              <Pressable
+                style={[styles.togglePill, isDeliveryModeActive && styles.togglePillActive]}
+                onPress={toggleDeliveryMode}
+                disabled={updatingDeliveryMode}
+              >
+                <View style={[styles.toggleKnob, isDeliveryModeActive && styles.toggleKnobActive]} />
+              </Pressable>
+              <Text style={styles.modeLabel}>Delivery Partner</Text>
+            </View>
+          ) : null}
 
           {!isAdmin ? (
             <Pressable style={styles.editBtn} onPress={openEdit}>
@@ -144,77 +178,174 @@ export default function ProfileScreen() {
 
         {isAdmin ? (
           <>
-            <View style={styles.row}>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{adminStats.totalOrders || 0}</Text>
-                <Text>Orders</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{adminStats.totalUsers || 0}</Text>
-                <Text>Users</Text>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoCardTitle}>Kitchen Status</Text>
+              <View style={styles.settingRow}>
+                <View style={styles.settingLeft}>
+                  <Ionicons name="storefront-outline" size={18} color={COLORS.muted} />
+                  <View>
+                    <Text style={styles.settingTitle}>{adminSettings.kitchenActive ? 'Active - Accepting Orders' : 'Inactive - Not Accepting Orders'}</Text>
+                  </View>
+                </View>
+                <Pressable
+                  style={[styles.togglePill, adminSettings.kitchenActive && styles.togglePillActive]}
+                  onPress={() => updateAdminSettings({ kitchenActive: !adminSettings.kitchenActive })}
+                  disabled={updatingAdminSettings}
+                >
+                  <View style={[styles.toggleKnob, adminSettings.kitchenActive && styles.toggleKnobActive]} />
+                </Pressable>
               </View>
             </View>
-            <View style={styles.statWideCard}>
-              <Text style={styles.statValue}>{adminStats.pendingDeliveryPartners || 0}</Text>
-              <Text>Pending Delivery Partners</Text>
+            <View style={styles.row}>
+              <Pressable style={styles.statCard} onPress={() => router.push('/admin/reports')}>
+                <Text style={styles.statLabel}>Today Earnings</Text>
+                <Text style={styles.statValue}>£{Number(adminStats.todayEarnings || 0).toFixed(2)}</Text>
+              </Pressable>
+              <Pressable style={styles.statCard} onPress={() => router.push('/admin/orders-management')}>
+                <Text style={styles.statLabel}>Total Orders</Text>
+                <Text style={styles.statValue}>{adminStats.totalOrders || 0}</Text>
+              </Pressable>
+            </View>
+            <View style={styles.quickSection}>
+              <Text style={styles.infoCardTitle}>Quick Actions</Text>
+              <View style={styles.adminGrid}>
+                {adminQuickActions.map((action) => (
+                  <Pressable key={action.route} style={styles.adminActionCard} onPress={() => router.push(action.route as any)}>
+                    <View style={styles.adminActionIconWrap}>
+                      <Ionicons name={action.icon} size={22} color={COLORS.accent} />
+                    </View>
+                    <Text style={styles.adminActionText}>{action.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
             <View style={styles.adminGrid}>
-              {adminActions.map((action) => (
-                <Pressable key={action.route} style={styles.adminActionCard} onPress={() => router.push(action.route as any)}>
-                  <View style={styles.adminActionIconWrap}>
-                    <Ionicons name={action.icon} size={20} color={COLORS.accent} />
+              <Pressable style={styles.adminActionCard} onPress={() => router.push('/admin/users-list')}>
+                <View style={styles.adminActionIconWrap}>
+                  <Ionicons name="people-outline" size={22} color={COLORS.accent} />
+                </View>
+                <Text style={styles.adminActionText}>Users</Text>
+              </Pressable>
+              <Pressable style={styles.adminActionCard} onPress={() => router.push('/admin/carousel-management')}>
+                <View style={styles.adminActionIconWrap}>
+                  <Ionicons name="images-outline" size={22} color={COLORS.accent} />
+                </View>
+                <Text style={styles.adminActionText}>Manage Carousel</Text>
+              </Pressable>
+              <Pressable style={styles.adminActionCard} onPress={() => router.push('/admin/reports')}>
+                <View style={styles.adminActionIconWrap}>
+                  <Ionicons name="bar-chart-outline" size={22} color={COLORS.accent} />
+                </View>
+                <Text style={styles.adminActionText}>Reports</Text>
+              </Pressable>
+              <View style={styles.adminActionCard}>
+                <View style={styles.adminActionIconWrap}>
+                  <Ionicons name="person-outline" size={22} color={COLORS.accent} />
+                </View>
+                <Text style={styles.adminActionText}>Active Drivers: {adminStats.activeDrivers || 0}</Text>
+              </View>
+            </View>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoCardTitle}>Settings</Text>
+              <View style={styles.settingRow}>
+                <View style={styles.settingLeft}>
+                  <Ionicons name="moon-outline" size={18} color={COLORS.muted} />
+                  <View>
+                    <Text style={styles.settingTitle}>Dark Mode</Text>
                   </View>
-                  <Text style={styles.adminActionText}>{action.label}</Text>
+                </View>
+                <Pressable
+                  style={[styles.togglePill, adminSettings.darkMode && styles.togglePillActive]}
+                  onPress={() => updateAdminSettings({ darkMode: !adminSettings.darkMode })}
+                  disabled={updatingAdminSettings}
+                >
+                  <View style={[styles.toggleKnob, adminSettings.darkMode && styles.toggleKnobActive]} />
                 </Pressable>
-              ))}
+              </View>
             </View>
           </>
         ) : (
           <>
-            <Pressable style={styles.link} onPress={() => router.push('/order-history')}><Text>Order History</Text></Pressable>
-            {!isDeliveryPartner ? (
-              <Pressable style={styles.link} onPress={() => router.push('/delivery-partner-registration')}><Text>Become a Delivery Partner</Text></Pressable>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoCardTitle}>Account Information</Text>
+              <View style={styles.infoRow}>
+                <Ionicons name="mail-outline" size={18} color={COLORS.muted} />
+                <View style={styles.infoRowTextWrap}>
+                  <Text style={styles.infoLabel}>Email</Text>
+                  <Text style={styles.infoValue}>{user?.email || '-'}</Text>
+                </View>
+              </View>
+              <View style={styles.infoDivider} />
+              <View style={styles.infoRow}>
+                <Ionicons name="call-outline" size={18} color={COLORS.muted} />
+                <View style={styles.infoRowTextWrap}>
+                  <Text style={styles.infoLabel}>Phone</Text>
+                  <Text style={styles.infoValue}>{user?.phone || '-'}</Text>
+                </View>
+              </View>
+              <View style={styles.infoDivider} />
+              <View style={styles.infoRow}>
+                <Ionicons name="location-outline" size={18} color={COLORS.muted} />
+                <View style={styles.infoRowTextWrap}>
+                  <Text style={styles.infoLabel}>Address</Text>
+                  <Text style={styles.infoValue}>{user?.addressLine || 'Address not added'}</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.infoCard}>
+              <Text style={styles.infoCardTitle}>Settings</Text>
+              <Pressable style={styles.settingRow} onPress={() => router.push('/notifications')}>
+                <View style={styles.settingLeft}>
+                  <Ionicons name="notifications-outline" size={18} color={COLORS.muted} />
+                  <View>
+                    <Text style={styles.settingTitle}>Notifications</Text>
+                    <Text style={styles.settingSubtitle}>Manage notification preferences</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={COLORS.muted} />
+              </Pressable>
+              <View style={styles.infoDivider} />
+              <Pressable style={styles.settingRow} onPress={() => router.push('/order-history')}>
+                <View style={styles.settingLeft}>
+                  <Ionicons name="shield-checkmark-outline" size={18} color={COLORS.muted} />
+                  <View>
+                    <Text style={styles.settingTitle}>Privacy</Text>
+                    <Text style={styles.settingSubtitle}>Privacy and security settings</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={COLORS.muted} />
+              </Pressable>
+              <View style={styles.infoDivider} />
+              <Pressable style={styles.settingRow} onPress={() => router.push('/home')}>
+                <View style={styles.settingLeft}>
+                  <Ionicons name="help-circle-outline" size={18} color={COLORS.muted} />
+                  <View>
+                    <Text style={styles.settingTitle}>Help & Support</Text>
+                    <Text style={styles.settingSubtitle}>Get help or contact us</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={COLORS.muted} />
+              </Pressable>
+            </View>
+            {!isDeliveryPartnerApproved ? (
+              <View style={styles.deliveryRequestWrap}>
+                {deliveryRequestStatus === 'PENDING' ? (
+                  <Text style={styles.pendingText}>Waiting for admin approval. Status: pending</Text>
+                ) : null}
+                <Pressable
+                  style={[styles.link, deliveryRequestStatus === 'PENDING' && styles.linkDisabled]}
+                  onPress={() => router.push('/delivery-partner-registration')}
+                  disabled={deliveryRequestStatus === 'PENDING'}
+                >
+                  <Text style={styles.linkText}>
+                    {deliveryRequestStatus === 'REJECTED' ? 'Re-request Become a Delivery Partner' : 'Become a Delivery Partner'}
+                  </Text>
+                </Pressable>
+              </View>
             ) : null}
           </>
         )}
-
-        {isDeliveryPartner ? (
-          <>
-            <View style={styles.row}>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{deliveryData.todayDeliveries || 0}</Text>
-                <Text>Today</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{deliveryData.last7DaysDeliveries || 0}</Text>
-                <Text>Last 7 Days</Text>
-              </View>
-            </View>
-            <View style={styles.row}>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{Number(deliveryData.distanceKm || 0).toFixed(1)}</Text>
-                <Text>KM</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>Rs {Number(deliveryData.estimatedEarnings || 0).toFixed(0)}</Text>
-                <Text>Earnings</Text>
-              </View>
-            </View>
-            {activeAssignedOrdersCount > 0 ? (
-              <View style={styles.orderCard}>
-                <Text style={styles.orderAvailableHeading}>Order Available</Text>
-                <Text style={styles.mutedCentered}>New assigned orders: {activeAssignedOrdersCount}</Text>
-                <Animated.View style={{ transform: [{ scale: goOrdersAnim }] }}>
-                  <Pressable style={styles.mapBtn} onPress={() => router.push('/orders')}>
-                    <Text style={styles.mapBtnTxt}>Go to Orders</Text>
-                  </Pressable>
-                </Animated.View>
-              </View>
-            ) : null}
-          </>
-        ) : null}
-
-        <Pressable style={styles.link} onPress={() => router.push('/home')}><Text>Back to Home</Text></Pressable>
 
         <AnimatedLogoutButton onPress={() => setLogoutVisible(true)} />
       </ScrollView>
@@ -276,13 +407,20 @@ const styles = StyleSheet.create({
   name: { fontSize: 20, fontWeight: '800', marginTop: 8 },
   role: { marginTop: 4, color: COLORS.muted },
   badge: { marginTop: 8, color: COLORS.success, fontWeight: '700' },
+  modeRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  modeLabel: { color: COLORS.text, fontWeight: '700', fontSize: 12 },
   editBtn: { marginTop: 12, backgroundColor: COLORS.accent, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
   editBtnText: { color: '#fff', fontWeight: '800' },
   row: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  statCard: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 12 },
-  statWideCard: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 8 },
+  statCard: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#EFEFEF' },
+  statLabel: { color: COLORS.text, fontWeight: '700', marginBottom: 4 },
   statValue: { fontSize: 26, fontWeight: '900', color: COLORS.accent },
-  link: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 8 },
+  deliveryRequestWrap: { marginTop: 8 },
+  pendingText: { color: COLORS.muted, fontWeight: '600' },
+  link: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 8, alignItems: 'center' },
+  linkText: { color: COLORS.text, fontWeight: '700' },
+  linkDisabled: { opacity: 0.5 },
+  quickSection: { marginTop: 10 },
   adminGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
   adminActionCard: {
     width: '48%',
@@ -304,11 +442,38 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   adminActionText: { color: COLORS.text, fontWeight: '700', textAlign: 'center', fontSize: 12 },
-  orderCard: { backgroundColor: '#fff', borderRadius: 12, padding: 10, marginTop: 8 },
-  orderAvailableHeading: { textAlign: 'center', fontWeight: '900', fontSize: 18, color: COLORS.text },
-  mapBtn: { marginTop: 8, backgroundColor: COLORS.card, borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
-  mapBtnTxt: { color: COLORS.text, fontWeight: '700' },
-  mutedCentered: { marginTop: 4, color: COLORS.muted, textAlign: 'center' },
+  infoCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 10 },
+  infoCardTitle: { fontWeight: '800', color: COLORS.text, marginBottom: 8, fontSize: 18 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  infoRowTextWrap: { flex: 1 },
+  infoLabel: { color: COLORS.text, fontWeight: '700' },
+  infoValue: { color: COLORS.muted, marginTop: 1 },
+  infoDivider: { height: 1, backgroundColor: '#EFEFEF', marginVertical: 6 },
+  settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
+  settingLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  settingTitle: { color: COLORS.text, fontWeight: '700' },
+  settingSubtitle: { color: COLORS.muted, marginTop: 1, fontSize: 12 },
+  togglePill: {
+    width: 42,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#E0E0E0',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  togglePillActive: {
+    backgroundColor: COLORS.accentSoft,
+  },
+  toggleKnob: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#8A8A8A',
+  },
+  toggleKnobActive: {
+    alignSelf: 'flex-end',
+    backgroundColor: COLORS.accent,
+  },
 
   modalBackdrop: {
     flex: 1,

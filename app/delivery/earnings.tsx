@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api } from '../../src/services/api';
 import { COLORS } from '../../src/config/appConfig';
+import { formatCurrency } from '../../src/utils/format';
 
 export default function EarningsScreen() {
   const [data, setData] = useState<any>({});
@@ -15,7 +16,7 @@ export default function EarningsScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: 16 }}>
       <Text style={styles.title}>Earnings / Distance Stats</Text>
-      <View style={styles.card}><Text style={styles.value}>Rs {earnings.toFixed(2)}</Text><Text>Estimated earnings (30d)</Text></View>
+      <View style={styles.card}><Text style={styles.value}>{formatCurrency(earnings)}</Text><Text>Estimated earnings (30d)</Text></View>
       <View style={styles.card}><Text style={styles.value}>{Number(data.distanceKm || 0).toFixed(2)} KM</Text><Text>Total distance covered</Text></View>
     </ScrollView>
   );

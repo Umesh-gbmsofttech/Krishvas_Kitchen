@@ -33,8 +33,10 @@ export const api = {
 
   myProfile: () => http.get('/api/profile/me').then((r) => r.data),
   updateProfile: (payload: any) => http.put('/api/profile/me', payload).then((r) => r.data),
+  updateDeliveryMode: (deliveryModeActive: boolean) => http.patch('/api/profile/delivery-mode', { deliveryModeActive }).then((r) => r.data),
 
-  dailyMenu: () => http.get('/api/menus/daily').then((r) => r.data),
+  dailyMenu: (date?: string) => http.get('/api/menus/daily', { params: date ? { date } : undefined }).then((r) => r.data),
+  next7Menus: () => http.get('/api/menus/next-7').then((r) => r.data),
   banners: () => http.get('/api/menus/banners').then((r) => r.data),
   menuSuggestions: () => http.get('/api/menus/suggestions').then((r) => r.data),
   scheduledMenus: (start: string, end: string) => http.get('/api/menus/scheduled', { params: { start, end } }).then((r) => r.data),
@@ -47,6 +49,7 @@ export const api = {
   allOrders: () => http.get('/api/orders').then((r) => r.data),
   orderById: (orderId: string) => http.get(`/api/orders/${orderId}`).then((r) => r.data),
   myAssignedOrders: () => http.get('/api/orders/assigned/me').then((r) => r.data),
+  acceptAssignedOrder: (orderId: string) => http.patch(`/api/orders/${orderId}/accept`).then((r) => r.data),
   verifyDeliveryOtp: (orderId: string, otp: string) => http.patch(`/api/orders/${orderId}/verify-otp`, { otp }).then((r) => r.data),
   updateOrderStatus: (orderId: string, payload: any) => http.patch(`/api/orders/${orderId}/status`, payload).then((r) => r.data),
   assignDelivery: (orderId: string, partnerId: number) => http.patch(`/api/orders/${orderId}/assign/${partnerId}`).then((r) => r.data),
@@ -72,6 +75,9 @@ export const api = {
 
   adminDashboard: () => http.get('/api/admin/dashboard').then((r) => r.data),
   adminUsers: () => http.get('/api/admin/users').then((r) => r.data),
+  adminSettings: () => http.get('/api/admin/settings').then((r) => r.data),
+  updateAdminSettings: (payload: { kitchenActive?: boolean; darkMode?: boolean }) =>
+    http.patch('/api/admin/settings', payload).then((r) => r.data),
   adminBanners: () => http.get('/api/admin/banners').then((r) => r.data),
   createBanner: (payload: any) => http.post('/api/admin/banners', payload).then((r) => r.data),
   deleteBanner: (id: number) => http.delete(`/api/admin/banners/${id}`).then((r) => r.data),

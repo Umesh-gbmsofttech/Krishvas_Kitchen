@@ -8,6 +8,7 @@ import { hasMore, paginate } from '../src/utils/pagination';
 import { useAuth } from '../src/context/AuthContext';
 import { AppTextInput as TextInput } from '../src/components/AppTextInput';
 import { Skeleton } from '../src/components/Skeleton';
+import { formatCurrency } from '../src/utils/format';
 
 export default function OrderHistoryScreen() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -72,7 +73,7 @@ export default function OrderHistoryScreen() {
         <Pressable key={order.id} style={styles.card} onPress={() => router.push({ pathname: '/order-tracking', params: { orderId: order.orderId } })}>
           <Text style={styles.id}>{order.orderId}</Text>
           <Text>{order.status}</Text>
-          <Text style={styles.amount}>Rs {order.totalAmount}</Text>
+          <Text style={styles.amount}>{formatCurrency(Number(order.totalAmount || 0))}</Text>
         </Pressable>
       ))}
       {!loading && hasMore(filtered, page) ? (

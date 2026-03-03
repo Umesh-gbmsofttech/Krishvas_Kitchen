@@ -1,6 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 import { api } from '../../src/services/api';
 import { COLORS } from '../../src/config/appConfig';
@@ -96,6 +96,13 @@ export default function CarouselManagementScreen() {
     }
   };
 
+  const confirmDeleteBanner = (bannerId: number) => {
+    Alert.alert('Delete Banner', 'Are you sure you want to delete this banner?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => deleteBanner(bannerId) },
+    ]);
+  };
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: 16 }}>
       <AnimatedHeading text="Manage Carousel Images" />
@@ -125,7 +132,7 @@ export default function CarouselManagementScreen() {
           <Text style={styles.bold}>{banner.title}</Text>
           <Text>{banner.actionLabel || '-'}</Text>
           <Text>Position: {banner.positionOrder} | {banner.active ? 'Active' : 'Inactive'}</Text>
-          <Pressable style={styles.removeBtn} onPress={() => deleteBanner(banner.id)}>
+          <Pressable style={styles.removeBtn} onPress={() => confirmDeleteBanner(banner.id)}>
             <Text style={styles.removeBtnText}>Delete Banner</Text>
           </Pressable>
         </View>

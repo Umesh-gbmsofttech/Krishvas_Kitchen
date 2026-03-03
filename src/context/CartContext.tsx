@@ -11,9 +11,12 @@ export type CartItem = {
 
 type CartContextValue = {
   items: CartItem[];
+  bookingDate: string;
+  bookingSlot: 'ALL' | 'BREAKFAST' | 'LUNCH' | 'DINNER';
   addItem: (item: CartItem) => void;
   removeItem: (itemName: string) => void;
   updateQty: (itemName: string, quantity: number) => void;
+  setBooking: (date: string, slot: 'ALL' | 'BREAKFAST' | 'LUNCH' | 'DINNER') => void;
   clearCart: () => void;
   total: number;
 };
@@ -22,6 +25,8 @@ const CartContext = createContext<CartContextValue | undefined>(undefined);
 
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [bookingDate, setBookingDate] = useState(new Date().toISOString().slice(0, 10));
+  const [bookingSlot, setBookingSlot] = useState<'ALL' | 'BREAKFAST' | 'LUNCH' | 'DINNER'>('ALL');
 
   const addItem = (item: CartItem) => {
     setItems((prev) => {
@@ -43,6 +48,10 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const clearCart = () => setItems([]);
+  const setBooking = (date: string, slot: 'ALL' | 'BREAKFAST' | 'LUNCH' | 'DINNER') => {
+    setBookingDate(date);
+    setBookingSlot(slot);
+  };
 
   const total = useMemo(
     () => items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
@@ -50,7 +59,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateQty, clearCart, total }}>
+    <CartContext.Provider value={{ items, bookingDate, bookingSlot, addItem, removeItem, updateQty, setBooking, clearCart, total }}>
       {children}
     </CartContext.Provider>
   );

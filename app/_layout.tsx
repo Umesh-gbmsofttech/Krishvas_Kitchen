@@ -239,8 +239,19 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           <Pressable style={styles.navItem} onPress={() => router.push('/todays-menu')}>
             <Text style={[styles.navText, pathname === '/todays-menu' && styles.navTextActive]}>Today</Text>
           </Pressable>
-          <Pressable style={styles.navItem} onPress={() => router.push('/orders')}>
-            <Text style={[styles.navText, (pathname === '/orders' || pathname === '/order-history') && styles.navTextActive]}>Orders</Text>
+          <Pressable
+            style={styles.navItem}
+            onPress={() => router.push((user?.role === 'ADMIN' ? '/admin/orders-management' : '/orders') as any)}
+          >
+            <Text
+              style={[
+                styles.navText,
+                (pathname === '/orders' || pathname === '/order-history' || pathname === '/admin/orders-management') &&
+                  styles.navTextActive,
+              ]}
+            >
+              Orders
+            </Text>
           </Pressable>
           <Pressable style={styles.navItem} onPress={() => router.push('/profile')}>
             <Text style={[styles.navText, pathname === '/profile' && styles.navTextActive]}>Profile</Text>
