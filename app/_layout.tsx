@@ -1,81 +1,18 @@
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Animated, AppState, Image, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import Constants from 'expo-constants';
+import { Animated, AppState, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { CartProvider, useCart } from '../src/context/CartContext';
 import { NotificationProvider, useNotifications } from '../src/context/NotificationContext';
-import { APP_NAME, BUILD_NUMBER, COLORS, RELEASES_API_URL, RELEASES_LATEST_URL } from '../src/config/appConfig';
+import { COLORS } from '../src/config/appConfig';
 import { connectRealtime, disconnectRealtime } from '../src/services/realtime';
 import { resolveImageUrl } from '../src/utils/images';
 
-const extractRunNumber = (value?: string | null) => {
-  if (!value) return null;
-  const match = String(value).trim().replace(/^v/i, '').match(/(\d+)/);
-  if (!match) return null;
-  const parsed = parseInt(match[1], 10);
-  return Number.isNaN(parsed) ? null : parsed;
-};
-
-const UpdatePrompt = () => {
-  const [visible, setVisible] = useState(false);
-  const [latestTag, setLatestTag] = useState('');
-  const currentRun = useMemo(() => {
-    const fromNativeBuild = extractRunNumber(String(Constants.nativeBuildVersion || ''));
-    const fromNativeVersion = extractRunNumber(String(Constants.nativeApplicationVersion || ''));
-    const fromExtraBuild = extractRunNumber(BUILD_NUMBER);
-    return fromNativeBuild ?? fromNativeVersion ?? fromExtraBuild;
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-    const check = async () => {
-      try {
-        const res = await fetch(RELEASES_API_URL, { headers: { Accept: 'application/vnd.github+json' } });
-        if (!res.ok) return;
-        const data = await res.json();
-        const releaseText = `${data?.name || ''} ${data?.tag_name || ''}`.toLowerCase();
-        if (!releaseText.includes(APP_NAME.toLowerCase())) return;
-        const latest = extractRunNumber(data?.tag_name) ?? extractRunNumber(data?.name);
-        if (!mounted || !latest || !currentRun) return;
-        if (latest > currentRun) {
-          const latestLabel = String(data?.tag_name || data?.name || `v${latest}`).trim();
-          setLatestTag(latestLabel);
-          setVisible(true);
-        }
-      } catch {
-        // silent
-      }
-    };
-    check();
-    return () => {
-      mounted = false;
-    };
-  }, [currentRun]);
-
-  return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={() => setVisible(false)}>
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          <Text style={styles.title}>New update available</Text>
-          <Text style={styles.subtitle}>A new version ({latestTag}) is available.</Text>
-          <View style={styles.actions}>
-            <Pressable style={[styles.btn, styles.light]} onPress={() => setVisible(false)}>
-              <Text style={styles.lightText}>Later</Text>
-            </Pressable>
-            <Pressable style={[styles.btn, styles.dark]} onPress={() => Linking.openURL(RELEASES_LATEST_URL)}>
-              <Text style={styles.darkText}>Download</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-};
+// Update prompt logic/API call intentionally disabled for now.
 
 const AuthGate = ({ children }: { children: ReactNode }) => {
   const { user, token, ready } = useAuth();
@@ -297,7 +234,6 @@ export default function RootLayout() {
           <AuthGate>
             <StatusBar style="light" backgroundColor={COLORS.accent} translucent={false} hidden={statusBarHidden} />
             <AppShell>
-              <UpdatePrompt />
               <Stack screenOptions={{ headerShown: false }} initialRouteName="splash">
                 <Stack.Screen name="splash" />
                 <Stack.Screen name="index" />

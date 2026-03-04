@@ -66,6 +66,8 @@ export const api = {
 
   trackingHistory: (orderId: string) => http.get(`/api/tracking/orders/${orderId}`).then((r) => r.data),
   pushTracking: (orderId: string, payload: any) => http.post(`/api/tracking/orders/${orderId}`, payload).then((r) => r.data),
+  mapsConfig: () => http.get('/api/maps/config').then((r) => r.data),
+  mapsDirections: (payload: any) => http.post('/api/maps/directions', payload).then((r) => r.data),
 
   payOrder: (orderId: string, payload: any) => http.post(`/api/payments/orders/${orderId}`, payload).then((r) => r.data),
 
