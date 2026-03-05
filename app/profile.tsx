@@ -4,7 +4,7 @@ import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'rea
 import { useEffect, useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/context/AuthContext';
-import { COLORS } from '../src/config/appConfig';
+import { COLORS, CURRENCY_SYMBOL } from '../src/config/appConfig';
 import { api } from '../src/services/api';
 import { resolveImageUrl } from '../src/utils/images';
 import { AnimatedLogoutButton } from '../src/components/AnimatedLogoutButton';
@@ -23,7 +23,6 @@ export default function ProfileScreen() {
     darkMode: false,
   });
   const [updatingAdminSettings, setUpdatingAdminSettings] = useState(false);
-  const [deliveryRequestStatus, setDeliveryRequestStatus] = useState<string | null>(null);
   const [updatingDeliveryMode, setUpdatingDeliveryMode] = useState(false);
 
   const [editVisible, setEditVisible] = useState(false);
@@ -93,6 +92,9 @@ export default function ProfileScreen() {
     { label: 'Manage Menu', icon: 'restaurant-outline' as const, route: '/admin/menu-scheduler' },
     { label: 'Driver (Delivery partner)', icon: 'bicycle-outline' as const, route: '/admin/delivery-approvals' },
     { label: 'View Orders', icon: 'receipt-outline' as const, route: '/admin/orders-management' },
+    { label: 'Users', icon: 'people-outline' as const, route: '/admin/users-list' },
+    { label: 'Manage Carousel', icon: 'images-outline' as const, route: '/admin/carousel-management' },
+    { label: 'Reports', icon: 'bar-chart-outline' as const, route: '/admin/reports' },
   ];
 
   useEffect(() => {
@@ -105,14 +107,6 @@ export default function ProfileScreen() {
       });
     }).catch(() => {});
   }, [isAdmin]);
-
-  useEffect(() => {
-    if (isAdmin || isDeliveryPartnerApproved) return;
-    api
-      .myDeliveryStatus()
-      .then((res) => setDeliveryRequestStatus(res?.status ? String(res.status).toUpperCase() : null))
-      .catch(() => setDeliveryRequestStatus(null));
-  }, [isAdmin, isDeliveryPartnerApproved]);
 
   const toggleDeliveryMode = async () => {
     if (!isDeliveryPartnerApproved || updatingDeliveryMode) return;
@@ -199,7 +193,7 @@ export default function ProfileScreen() {
             <View style={styles.row}>
               <Pressable style={styles.statCard} onPress={() => router.push('/admin/reports')}>
                 <Text style={styles.statLabel}>Today Earnings</Text>
-                <Text style={styles.statValue}>£{Number(adminStats.todayEarnings || 0).toFixed(2)}</Text>
+                <Text style={styles.statValue}>{CURRENCY_SYMBOL}{Number(adminStats.todayEarnings || 0).toFixed(2)}</Text>
               </Pressable>
               <Pressable style={styles.statCard} onPress={() => router.push('/admin/orders-management')}>
                 <Text style={styles.statLabel}>Total Orders</Text>
@@ -217,32 +211,12 @@ export default function ProfileScreen() {
                     <Text style={styles.adminActionText}>{action.label}</Text>
                   </Pressable>
                 ))}
-              </View>
-            </View>
-            <View style={styles.adminGrid}>
-              <Pressable style={styles.adminActionCard} onPress={() => router.push('/admin/users-list')}>
-                <View style={styles.adminActionIconWrap}>
-                  <Ionicons name="people-outline" size={22} color={COLORS.accent} />
+                <View style={styles.adminActionCard}>
+                  <View style={styles.adminActionIconWrap}>
+                    <Ionicons name="person-outline" size={22} color={COLORS.accent} />
+                  </View>
+                  <Text style={styles.adminActionText}>Active Drivers: {adminStats.activeDrivers || 0}</Text>
                 </View>
-                <Text style={styles.adminActionText}>Users</Text>
-              </Pressable>
-              <Pressable style={styles.adminActionCard} onPress={() => router.push('/admin/carousel-management')}>
-                <View style={styles.adminActionIconWrap}>
-                  <Ionicons name="images-outline" size={22} color={COLORS.accent} />
-                </View>
-                <Text style={styles.adminActionText}>Manage Carousel</Text>
-              </Pressable>
-              <Pressable style={styles.adminActionCard} onPress={() => router.push('/admin/reports')}>
-                <View style={styles.adminActionIconWrap}>
-                  <Ionicons name="bar-chart-outline" size={22} color={COLORS.accent} />
-                </View>
-                <Text style={styles.adminActionText}>Reports</Text>
-              </Pressable>
-              <View style={styles.adminActionCard}>
-                <View style={styles.adminActionIconWrap}>
-                  <Ionicons name="person-outline" size={22} color={COLORS.accent} />
-                </View>
-                <Text style={styles.adminActionText}>Active Drivers: {adminStats.activeDrivers || 0}</Text>
               </View>
             </View>
             <View style={styles.infoCard}>
@@ -328,22 +302,6 @@ export default function ProfileScreen() {
                 <Ionicons name="chevron-forward" size={16} color={COLORS.muted} />
               </Pressable>
             </View>
-            {!isDeliveryPartnerApproved ? (
-              <View style={styles.deliveryRequestWrap}>
-                {deliveryRequestStatus === 'PENDING' ? (
-                  <Text style={styles.pendingText}>Waiting for admin approval. Status: pending</Text>
-                ) : null}
-                <Pressable
-                  style={[styles.link, deliveryRequestStatus === 'PENDING' && styles.linkDisabled]}
-                  onPress={() => router.push('/delivery-partner-registration')}
-                  disabled={deliveryRequestStatus === 'PENDING'}
-                >
-                  <Text style={styles.linkText}>
-                    {deliveryRequestStatus === 'REJECTED' ? 'Re-request Become a Delivery Partner' : 'Become a Delivery Partner'}
-                  </Text>
-                </Pressable>
-              </View>
-            ) : null}
           </>
         )}
 
@@ -415,13 +373,8 @@ const styles = StyleSheet.create({
   statCard: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#EFEFEF' },
   statLabel: { color: COLORS.text, fontWeight: '700', marginBottom: 4 },
   statValue: { fontSize: 26, fontWeight: '900', color: COLORS.accent },
-  deliveryRequestWrap: { marginTop: 8 },
-  pendingText: { color: COLORS.muted, fontWeight: '600' },
-  link: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 8, alignItems: 'center' },
-  linkText: { color: COLORS.text, fontWeight: '700' },
-  linkDisabled: { opacity: 0.5 },
   quickSection: { marginTop: 10 },
-  adminGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
+  adminGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 10, columnGap: 10, justifyContent: 'space-between', marginTop: 8 },
   adminActionCard: {
     width: '48%',
     backgroundColor: '#fff',

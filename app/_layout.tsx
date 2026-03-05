@@ -8,9 +8,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { CartProvider, useCart } from '../src/context/CartContext';
 import { NotificationProvider, useNotifications } from '../src/context/NotificationContext';
-import { COLORS } from '../src/config/appConfig';
+import { COLORS, STRIPE_KEY } from '../src/config/appConfig';
 import { connectRealtime, disconnectRealtime } from '../src/services/realtime';
 import { resolveImageUrl } from '../src/utils/images';
+
+let StripeProviderComponent: any = null;
+try {
+  // Avoid crashing in Expo Go where Stripe native module isn't present.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  StripeProviderComponent = require('@stripe/stripe-react-native').StripeProvider;
+} catch {
+  StripeProviderComponent = null;
+}
 
 // Update prompt logic/API call intentionally disabled for now.
 
@@ -75,7 +84,6 @@ const APP_ROUTES_WITH_SHELL = new Set([
   '/payment',
   '/item-details',
   '/notifications',
-  '/delivery-partner-registration',
   '/admin/menu-scheduler',
   '/admin/carousel-management',
   '/admin/orders-management',
@@ -227,14 +235,14 @@ export default function RootLayout() {
     };
   }, []);
 
-  return (
-    <AuthProvider>
-      <NotificationProvider>
-        <CartProvider>
-          <AuthGate>
-            <StatusBar style="light" backgroundColor={COLORS.accent} translucent={false} hidden={statusBarHidden} />
-            <AppShell>
-              <Stack screenOptions={{ headerShown: false }} initialRouteName="splash">
+  const appContent = (
+      <AuthProvider>
+        <NotificationProvider>
+          <CartProvider>
+            <AuthGate>
+              <StatusBar style="light" backgroundColor={COLORS.accent} translucent={false} hidden={statusBarHidden} />
+              <AppShell>
+                <Stack screenOptions={{ headerShown: false }} initialRouteName="splash">
                 <Stack.Screen name="splash" />
                 <Stack.Screen name="index" />
                 <Stack.Screen name="home" />
@@ -248,7 +256,6 @@ export default function RootLayout() {
                 <Stack.Screen name="order-tracking" />
                 <Stack.Screen name="order-history" />
                 <Stack.Screen name="profile" />
-                <Stack.Screen name="delivery-partner-registration" />
                 <Stack.Screen name="notifications" />
                 <Stack.Screen name="auth/login" />
                 <Stack.Screen name="auth/signup" />
@@ -263,13 +270,22 @@ export default function RootLayout() {
                 <Stack.Screen name="delivery/deliveries" />
                 <Stack.Screen name="delivery/map-view" />
                 <Stack.Screen name="delivery/earnings" />
-              </Stack>
-            </AppShell>
-          </AuthGate>
-        </CartProvider>
-      </NotificationProvider>
-    </AuthProvider>
+                </Stack>
+              </AppShell>
+            </AuthGate>
+          </CartProvider>
+        </NotificationProvider>
+      </AuthProvider>
   );
+
+  if (StripeProviderComponent) {
+    return (
+      <StripeProviderComponent publishableKey={STRIPE_KEY} merchantIdentifier="merchant.krishvas.kitchen">
+        {appContent}
+      </StripeProviderComponent>
+    );
+  }
+  return appContent;
 }
 
 const styles = StyleSheet.create({

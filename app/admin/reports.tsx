@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api } from '../../src/services/api';
 import { COLORS } from '../../src/config/appConfig';
 import { formatCurrency } from '../../src/utils/format';
+import { WeekDateStrip } from '../../src/components/WeekDateStrip';
 
 const formatLocalDate = (d: Date) => {
   const year = d.getFullYear();
@@ -44,15 +45,7 @@ export default function ReportsScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: 16 }}>
       <Text style={styles.title}>Reports</Text>
-      <View style={styles.dateRow}>
-        <Pressable style={styles.dateBtn} onPress={() => setSelectedDate(formatLocalDate(new Date(new Date(selectedDate).getTime() - 86400000)))}>
-          <Text style={styles.dateBtnTxt}>Prev</Text>
-        </Pressable>
-        <Text style={styles.dateValue}>{selectedDate}</Text>
-        <Pressable style={styles.dateBtn} onPress={() => setSelectedDate(formatLocalDate(new Date(new Date(selectedDate).getTime() + 86400000)))}>
-          <Text style={styles.dateBtnTxt}>Next</Text>
-        </Pressable>
-      </View>
+      <WeekDateStrip value={selectedDate} onChange={setSelectedDate} />
 
       <View style={styles.card}>
         <Text style={styles.value}>{formatCurrency(totalRevenue)}</Text>
@@ -97,10 +90,6 @@ export default function ReportsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
   title: { fontSize: 24, fontWeight: '900' , textAlign: 'center'},
-  dateRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  dateBtn: { backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-  dateBtnTxt: { color: COLORS.text, fontWeight: '700' },
-  dateValue: { flex: 1, textAlign: 'center', color: COLORS.text, fontWeight: '800' },
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 10 },
   cardTitle: { fontWeight: '800', color: COLORS.text, marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },

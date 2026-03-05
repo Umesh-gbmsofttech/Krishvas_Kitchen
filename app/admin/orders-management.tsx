@@ -31,6 +31,8 @@ export default function OrdersManagementScreen() {
   const [orders, setOrders] = useState<any[]>([]);
   const [partners, setPartners] = useState<any[]>([]);
   const [selectedPartnerByOrder, setSelectedPartnerByOrder] = useState<Record<string, number>>({});
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [bulkPartnerId, setBulkPartnerId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [submittingOrderId, setSubmittingOrderId] = useState<string | null>(null);
@@ -65,6 +67,10 @@ export default function OrdersManagementScreen() {
   useEffect(() => {
     setPage(1);
   }, [debouncedQuery, selectedDate, selectedStatus]);
+
+  useEffect(() => {
+    setSelectedOrderIds([]);
+  }, [selectedDate, selectedStatus, debouncedQuery]);
 
   const filtered = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
@@ -118,6 +124,24 @@ export default function OrdersManagementScreen() {
         ))}
       </ScrollView>
       <Text style={styles.countText}>{filtered.length} Orders</Text>
+      <View style={styles.bulkRow}>
+        <Text style={styles.bulkMeta}>Selected: {selectedOrderIds.length}</Text>
+        <Pressable style={styles.bulkBtn} onPress={() => setPickerOrderId('__bulk__')}>
+          <Text style={styles.bulkBtnTxt}>{bulkPartnerId ? 'Change Bulk Partner' : 'Select Bulk Partner'}</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.bulkBtnDark, (selectedOrderIds.length === 0 || !bulkPartnerId) && styles.bulkBtnDisabled]}
+          disabled={selectedOrderIds.length === 0 || !bulkPartnerId}
+          onPress={async () => {
+            const limited = selectedOrderIds.slice(0, 50);
+            await api.assignDeliveryBulk(bulkPartnerId!, limited);
+            await load();
+            setSelectedOrderIds([]);
+          }}
+        >
+          <Text style={styles.bulkBtnTxtWhite}>Assign up to 50</Text>
+        </Pressable>
+      </View>
       <TextInput value={query} onChangeText={setQuery} placeholder="Search orders" style={styles.search} />
       {!!error ? <Text style={styles.error}>{error}</Text> : null}
       {loading
@@ -136,6 +160,21 @@ export default function OrdersManagementScreen() {
         : null}
       {visible.map((order) => (
         <View key={order.orderId || order.id} style={styles.card}>
+          {!['DELIVERED', 'CANCELLED'].includes(String(order.status || '')) ? (
+            <Pressable
+              style={styles.bulkPickRow}
+              onPress={() => {
+                setSelectedOrderIds((prev) =>
+                  prev.includes(order.orderId)
+                    ? prev.filter((id) => id !== order.orderId)
+                    : [...prev, order.orderId].slice(0, 50)
+                );
+              }}
+            >
+              <View style={[styles.bulkBox, selectedOrderIds.includes(order.orderId) && styles.bulkBoxActive]} />
+              <Text style={styles.bulkMeta}>Select for bulk assign</Text>
+            </Pressable>
+          ) : null}
           {(() => {
             const statusText = String(order.status || '').toUpperCase();
             const isDelivered = statusText === 'DELIVERED';
@@ -280,14 +319,22 @@ export default function OrdersManagementScreen() {
                 const imageUri = resolveImageUrl(
                   partner.user?.profileImageUrl || (partner.user?.profileImageId ? `/api/images/${partner.user.profileImageId}` : null)
                 );
-                const active = pickerOrderId ? selectedPartnerByOrder[pickerOrderId] === partner.id : false;
+                const active = pickerOrderId === '__bulk__'
+                  ? bulkPartnerId === partner.id
+                  : pickerOrderId
+                    ? selectedPartnerByOrder[pickerOrderId] === partner.id
+                    : false;
                 return (
                   <Pressable
                     key={`partner-pick-${partner.id}`}
                     style={[styles.partnerPickRow, active && styles.partnerPickRowActive]}
                     onPress={() => {
                       if (!pickerOrderId) return;
-                      setSelectedPartnerByOrder((prev) => ({ ...prev, [pickerOrderId]: partner.id }));
+                      if (pickerOrderId === '__bulk__') {
+                        setBulkPartnerId(partner.id);
+                      } else {
+                        setSelectedPartnerByOrder((prev) => ({ ...prev, [pickerOrderId]: partner.id }));
+                      }
                       setPickerOrderId(null);
                     }}
                   >
@@ -340,6 +387,16 @@ const styles = StyleSheet.create({
   filterChipText: { color: COLORS.text, fontWeight: '700', fontSize: 12 },
   filterChipTextActive: { color: '#fff' },
   countText: { marginTop: 4, color: COLORS.text, fontWeight: '700' },
+  bulkRow: { marginTop: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+  bulkMeta: { color: COLORS.text, fontWeight: '700', fontSize: 12 },
+  bulkBtn: { backgroundColor: COLORS.chip, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  bulkBtnDark: { backgroundColor: COLORS.text, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  bulkBtnDisabled: { opacity: 0.45 },
+  bulkBtnTxt: { color: COLORS.text, fontWeight: '700', fontSize: 12 },
+  bulkBtnTxtWhite: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  bulkPickRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  bulkBox: { width: 16, height: 16, borderRadius: 4, borderWidth: 1.4, borderColor: COLORS.muted, backgroundColor: '#fff' },
+  bulkBoxActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
   chip: { backgroundColor: COLORS.chip, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   chipActive: { backgroundColor: COLORS.accentSoft },
   chipText: { fontSize: 11 },

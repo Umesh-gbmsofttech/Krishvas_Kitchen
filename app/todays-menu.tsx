@@ -25,8 +25,15 @@ export default function TodaysMenuScreen() {
     if (asRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const daily = await api.dailyMenu();
-      setMenu(daily || null);
+      const [daily, next7] = await Promise.all([api.dailyMenu(), api.next7Menus().catch(() => [])]);
+      const primary = daily || null;
+      if (primary && Array.isArray(primary.items) && primary.items.length) {
+        setMenu(primary);
+      } else {
+        const upcoming = Array.isArray(next7) ? next7 : [];
+        const firstWithItems = upcoming.find((m: any) => Array.isArray(m?.items) && m.items.length);
+        setMenu(firstWithItems || primary);
+      }
     } finally {
       if (asRefresh) setRefreshing(false);
       else setLoading(false);

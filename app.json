@@ -51,7 +51,8 @@
     "extra": {
       "buildNumber": "1",
       "apiBaseUrl": "https://krishvas-kitchen-server.onrender.com",
-      "githubRepo": "Umesh-gbmsofttech/Krishvas_Kitchen"
+      "githubRepo": "Umesh-gbmsofttech/Krishvas_Kitchen",
+      "stripePublishableKey": "pk_test_51T7VfSCJp2gc0N3ig2nlS2pEXpfYzhpqb3oBsXclr2UbCTFBZ9crqovAL4uk7U4T9Xkr1Aolp6Bwt2lwfXs6hHGW00hhlpmNng"
     }
   }
 }

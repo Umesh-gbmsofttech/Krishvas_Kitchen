@@ -4,8 +4,8 @@ import * as Location from 'expo-location';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { api } from '../../src/services/api';
 import { COLORS } from '../../src/config/appConfig';
+import { api } from '../../src/services/api';
 
 const isExpoGo = Constants.appOwnership === 'expo';
 let MapLibreGL: any = null;
@@ -40,6 +40,18 @@ const buildRasterStyle = (tileUrlTemplate: string) => ({
   layers: [{ id: 'maptiler-raster-layer', type: 'raster', source: 'maptiler' }],
 });
 
+type Stop = {
+  orderId: string;
+  latitude: number;
+  longitude: number;
+  status?: string;
+  customerName?: string;
+  addressLine?: string;
+};
+
+const ACTIVE_DELIVERY_STATUSES = ['CONFIRMED', 'OUT_FOR_DELIVERY', 'PREPARING', 'PLACED'];
+const CLOSED_STATUSES = ['DELIVERED', 'CANCELLED', 'FAILED'];
+
 const haversineMeters = (a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }) => {
   const R = 6371000;
   const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
@@ -50,6 +62,32 @@ const haversineMeters = (a: { latitude: number; longitude: number }, b: { latitu
   return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 };
 
+const toNum = (v: any) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+const reorderByNearest = (origin: { latitude: number; longitude: number }, stops: Stop[]) => {
+  const remaining = [...stops];
+  const ordered: Stop[] = [];
+  let current = origin;
+  while (remaining.length) {
+    let bestIndex = 0;
+    let bestDist = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < remaining.length; i += 1) {
+      const dist = haversineMeters(current, remaining[i]);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestIndex = i;
+      }
+    }
+    const [picked] = remaining.splice(bestIndex, 1);
+    ordered.push(picked);
+    current = picked;
+  }
+  return ordered;
+};
+
 export default function DeliveryMapViewScreen() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const cameraRef = useRef<any>(null);
@@ -57,7 +95,8 @@ export default function DeliveryMapViewScreen() {
   const watchRef = useRef<Location.LocationSubscription | null>(null);
 
   const [activeOrderId, setActiveOrderId] = useState<string | null>(orderId || null);
-  const [order, setOrder] = useState<any>(null);
+  const [assignedStops, setAssignedStops] = useState<Stop[]>([]);
+  const [orderedStops, setOrderedStops] = useState<Stop[]>([]);
   const [partnerLocation, setPartnerLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [routeCoords, setRouteCoords] = useState<number[][]>([]);
   const [routeSteps, setRouteSteps] = useState<any[]>([]);
@@ -69,18 +108,8 @@ export default function DeliveryMapViewScreen() {
   const [mapStyle, setMapStyle] = useState<any>(null);
   const [fullScreen, setFullScreen] = useState(false);
 
-  const destination = useMemo(
-    () => ({
-      latitude: Number(order?.latitude || 19.076),
-      longitude: Number(order?.longitude || 72.8777),
-    }),
-    [order?.latitude, order?.longitude]
-  );
-
-  const activeRider = partnerLocation;
-  const mapCenter = activeRider || destination;
-  const riderCoordinate = activeRider ? [activeRider.longitude, activeRider.latitude] : null;
-  const destinationCoordinate = [destination.longitude, destination.latitude];
+  const riderCoordinate = partnerLocation ? [partnerLocation.longitude, partnerLocation.latitude] : null;
+  const mapCenter = partnerLocation || orderedStops[0] || null;
   const routeFeature = useMemo(
     () => ({
       type: 'Feature',
@@ -96,7 +125,7 @@ export default function DeliveryMapViewScreen() {
     const lats = coordinates.map((c) => c[1]);
     const ne: [number, number] = [Math.max(...lngs), Math.max(...lats)];
     const sw: [number, number] = [Math.min(...lngs), Math.min(...lats)];
-    targetRef.current.fitBounds(ne, sw, [80, 80, 80, 80], 900);
+    targetRef.current.fitBounds(ne, sw, [90, 90, 90, 90], 900);
   }, []);
 
   useEffect(() => {
@@ -125,18 +154,30 @@ export default function DeliveryMapViewScreen() {
 
     const init = async () => {
       try {
+        const assigned = await api.myAssignedOrders().catch(() => []);
+        const activeAssigned = (assigned || []).filter((o: any) => {
+          const lat = toNum(o?.latitude);
+          const lng = toNum(o?.longitude);
+          const status = String(o?.status || '').toUpperCase();
+          return lat !== null && lng !== null && ACTIVE_DELIVERY_STATUSES.includes(status) && !CLOSED_STATUSES.includes(status);
+        });
+        const stops: Stop[] = activeAssigned.map((o: any) => ({
+          orderId: String(o.orderId),
+          latitude: Number(o.latitude),
+          longitude: Number(o.longitude),
+          status: String(o.status || ''),
+          customerName: o.customerName || '',
+          addressLine: o.addressLine || '',
+        }));
+        if (!active) return;
+        setAssignedStops(stops);
+
         let selectedOrderId = orderId || null;
         if (!selectedOrderId) {
-          const assigned = await api.myAssignedOrders().catch(() => []);
-          const activeOrder = (assigned || []).find((o: any) => o.status === 'OUT_FOR_DELIVERY') || assigned?.[0];
-          selectedOrderId = activeOrder?.orderId || null;
+          const outForDelivery = activeAssigned.find((o: any) => String(o.status || '').toUpperCase() === 'OUT_FOR_DELIVERY');
+          selectedOrderId = outForDelivery?.orderId || activeAssigned?.[0]?.orderId || null;
         }
-        if (!active) return;
         setActiveOrderId(selectedOrderId);
-        if (selectedOrderId) {
-          const found = await api.orderById(selectedOrderId);
-          if (active) setOrder(found || null);
-        }
 
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted' || !active) return;
@@ -144,7 +185,6 @@ export default function DeliveryMapViewScreen() {
         if (active) {
           setPartnerLocation({ latitude: current.coords.latitude, longitude: current.coords.longitude });
         }
-
         watchRef.current = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 2500, distanceInterval: 5 },
           (position) => {
@@ -152,7 +192,7 @@ export default function DeliveryMapViewScreen() {
           }
         );
       } catch {
-        // no-op
+        // ignore
       }
     };
 
@@ -165,28 +205,80 @@ export default function DeliveryMapViewScreen() {
 
   const fetchRoute = useCallback(async () => {
     if (!partnerLocation) return;
+    const rawStops = [...assignedStops];
+    if (!rawStops.length) {
+      setOrderedStops([]);
+      setRouteCoords([]);
+      setRouteSteps([]);
+      setDistanceKm(null);
+      setDurationMinutes(null);
+      return;
+    }
+
     setRouting(true);
     setRouteError('');
     try {
-      const data = await api.mapsDirections({
-        originLat: partnerLocation.latitude,
-        originLng: partnerLocation.longitude,
-        destinationLat: destination.latitude,
-        destinationLng: destination.longitude,
-      });
-      const coords = Array.isArray(data?.geometry) ? data.geometry : [];
-      const mapped = coords
-        .map((c: any) => [Number(c?.[0]), Number(c?.[1])])
-        .filter((c: any) => Number.isFinite(c[0]) && Number.isFinite(c[1]));
-      if (mapped.length < 2) throw new Error('Route unavailable');
+      const prioritized = activeOrderId
+        ? [
+            ...rawStops.filter((s) => s.orderId === activeOrderId),
+            ...rawStops.filter((s) => s.orderId !== activeOrderId),
+          ]
+        : rawStops;
 
-      setRouteCoords(mapped);
-      setRouteSteps(Array.isArray(data?.steps) ? data.steps : []);
-      setDistanceKm(Number(data?.distanceMeters || 0) / 1000);
-      setDurationMinutes(Number(data?.durationSeconds || 0) / 60);
+      const first = prioritized[0];
+      const rest = prioritized.slice(1);
+      const nearestRest = reorderByNearest(first, rest);
+      const ordered = [first, ...nearestRest];
+      setOrderedStops(ordered);
 
-      fitMapBounds(cameraRef, mapped);
-      if (fullScreen) setTimeout(() => fitMapBounds(fullCameraRef, mapped), 180);
+      let from = { ...partnerLocation };
+      let merged: number[][] = [];
+      let mergedSteps: any[] = [];
+      let totalDistanceMeters = 0;
+      let totalDurationSeconds = 0;
+
+      for (let i = 0; i < ordered.length; i += 1) {
+        const stop = ordered[i];
+        const data = await api.mapsDirections({
+          originLat: from.latitude,
+          originLng: from.longitude,
+          destinationLat: stop.latitude,
+          destinationLng: stop.longitude,
+        });
+        const segment = Array.isArray(data?.geometry)
+          ? data.geometry
+              .map((c: any) => [Number(c?.[0]), Number(c?.[1])])
+              .filter((c: any) => Number.isFinite(c[0]) && Number.isFinite(c[1]))
+          : [];
+        if (segment.length > 1) {
+          merged = merged.length ? merged.concat(segment.slice(1)) : segment;
+        }
+        const steps = Array.isArray(data?.steps) ? data.steps : [];
+        mergedSteps = mergedSteps.concat(
+          steps.map((step: any) => ({
+            ...step,
+            orderId: stop.orderId,
+            stopIndex: i + 1,
+          }))
+        );
+        totalDistanceMeters += Number(data?.distanceMeters || 0);
+        totalDurationSeconds += Number(data?.durationSeconds || 0);
+        from = { latitude: stop.latitude, longitude: stop.longitude };
+      }
+
+      setRouteCoords(merged);
+      setRouteSteps(mergedSteps);
+      setDistanceKm(totalDistanceMeters / 1000);
+      setDurationMinutes(totalDurationSeconds / 60);
+
+      const fitCoordinates = merged.length
+        ? merged
+        : [
+            [partnerLocation.longitude, partnerLocation.latitude],
+            ...ordered.map((s) => [s.longitude, s.latitude]),
+          ];
+      fitMapBounds(cameraRef, fitCoordinates);
+      if (fullScreen) setTimeout(() => fitMapBounds(fullCameraRef, fitCoordinates), 180);
     } catch (e: any) {
       setRouteError(e?.message || 'Failed to fetch route');
       setRouteCoords([]);
@@ -194,12 +286,12 @@ export default function DeliveryMapViewScreen() {
     } finally {
       setRouting(false);
     }
-  }, [destination.latitude, destination.longitude, fitMapBounds, fullScreen, partnerLocation]);
+  }, [activeOrderId, assignedStops, fitMapBounds, fullScreen, partnerLocation]);
 
   useEffect(() => {
-    if (!partnerLocation) return;
+    if (!partnerLocation || !assignedStops.length) return;
     fetchRoute();
-  }, [fetchRoute, partnerLocation]);
+  }, [fetchRoute, partnerLocation, assignedStops.length]);
 
   useEffect(() => {
     if (!partnerLocation || routeCoords.length > 1) return;
@@ -210,16 +302,20 @@ export default function DeliveryMapViewScreen() {
     });
   }, [partnerLocation, routeCoords.length]);
 
+  const primaryOrderId = orderedStops[0]?.orderId || activeOrderId;
+
   const pushLocation = async () => {
-    if (!activeOrderId || !partnerLocation || pushing) return;
+    if (!primaryOrderId || !partnerLocation || pushing) return;
+    const firstStop = orderedStops[0];
     setPushing(true);
     try {
-      const roughDistanceKm = haversineMeters(partnerLocation, destination) / 1000;
-      await api.pushTracking(activeOrderId, {
+      const roughDistanceKm =
+        firstStop ? haversineMeters(partnerLocation, firstStop) / 1000 : 0;
+      await api.pushTracking(primaryOrderId, {
         latitude: partnerLocation.latitude,
         longitude: partnerLocation.longitude,
         distanceKm: Number.isFinite(roughDistanceKm) ? Number(roughDistanceKm.toFixed(3)) : 0,
-        statusNote: 'Partner moving on route',
+        statusNote: 'Partner moving on optimized route',
       });
     } finally {
       setPushing(false);
@@ -251,16 +347,25 @@ export default function DeliveryMapViewScreen() {
           <View style={[styles.dot, { backgroundColor: COLORS.success }]} />
         </MapLibreGL.PointAnnotation>
       ) : null}
-      <MapLibreGL.PointAnnotation id={`${sourceId}-dest`} coordinate={destinationCoordinate}>
-        <View style={[styles.dot, { backgroundColor: COLORS.accent }]} />
-      </MapLibreGL.PointAnnotation>
+
+      {orderedStops.map((stop, idx) => (
+        <MapLibreGL.PointAnnotation
+          id={`${sourceId}-stop-${stop.orderId}-${idx}`}
+          key={`${sourceId}-stop-${stop.orderId}-${idx}`}
+          coordinate={[stop.longitude, stop.latitude]}
+        >
+          <View style={styles.stopPin}>
+            <Text style={styles.stopPinTxt}>{idx + 1}</Text>
+          </View>
+        </MapLibreGL.PointAnnotation>
+      ))}
     </MapLibreGL.MapView>
   );
 
   if (!MapLibreGL) {
     return (
       <View style={styles.screen}>
-        <Text style={styles.title}>Delivery Map</Text>
+        <Text style={styles.title}>Delivery Route</Text>
         <View style={styles.card}>
           <Text style={styles.empty}>Map is unavailable in Expo Go. Use APK/dev build.</Text>
         </View>
@@ -271,7 +376,7 @@ export default function DeliveryMapViewScreen() {
   if (!mapStyle) {
     return (
       <View style={styles.screen}>
-        <Text style={styles.title}>Delivery Map</Text>
+        <Text style={styles.title}>Delivery Route</Text>
         <View style={styles.card}>
           <ActivityIndicator color={COLORS.accent} />
         </View>
@@ -281,7 +386,7 @@ export default function DeliveryMapViewScreen() {
 
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>Delivery Map {activeOrderId ? `- ${activeOrderId}` : ''}</Text>
+      <Text style={styles.title}>Delivery Route {orderedStops.length ? `- ${orderedStops.length} stop(s)` : ''}</Text>
 
       <View style={styles.mapWrap}>
         {renderMap(cameraRef, 'main-route-source', 'main-route-line')}
@@ -289,17 +394,17 @@ export default function DeliveryMapViewScreen() {
           <Pressable style={styles.overlayBtn} onPress={() => setFullScreen(true)}>
             <Ionicons name="expand" size={18} color={COLORS.text} />
           </Pressable>
-          <Pressable style={styles.overlayBtn} onPress={fetchRoute} disabled={routing || !partnerLocation}>
+          <Pressable style={styles.overlayBtn} onPress={fetchRoute} disabled={routing || !partnerLocation || !assignedStops.length}>
             {routing ? <ActivityIndicator size="small" color={COLORS.accent} /> : <Ionicons name="navigate" size={18} color={COLORS.accent} />}
           </Pressable>
         </View>
       </View>
 
       <View style={styles.row}>
-        <Pressable style={[styles.btn, styles.flex]} onPress={fetchRoute} disabled={routing || !partnerLocation}>
+        <Pressable style={[styles.btn, styles.flex]} onPress={fetchRoute} disabled={routing || !partnerLocation || !assignedStops.length}>
           <Text style={styles.btnText}>{routing ? 'Routing...' : 'Refresh Route'}</Text>
         </Pressable>
-        <Pressable style={[styles.btn, styles.flex]} onPress={pushLocation} disabled={pushing || !partnerLocation || !activeOrderId}>
+        <Pressable style={[styles.btn, styles.flex]} onPress={pushLocation} disabled={pushing || !partnerLocation || !primaryOrderId}>
           <Text style={styles.btnText}>{pushing ? 'Sending...' : 'Push Live Location'}</Text>
         </Pressable>
       </View>
@@ -311,13 +416,30 @@ export default function DeliveryMapViewScreen() {
 
       {!!routeError ? <Text style={styles.error}>{routeError}</Text> : null}
 
+      {orderedStops.length ? (
+        <View style={styles.stopsCard}>
+          <Text style={styles.stepsTitle}>Stop Sequence (Nearest First)</Text>
+          <ScrollView style={styles.stepsList} nestedScrollEnabled>
+            {orderedStops.map((stop, idx) => (
+              <View key={`stop-${stop.orderId}-${idx}`} style={styles.stepRow}>
+                <Text style={styles.stepText}>{idx + 1}. {stop.orderId}</Text>
+                <Text style={styles.stepMeta}>{stop.status || ''}{stop.customerName ? ` | ${stop.customerName}` : ''}</Text>
+                {!!stop.addressLine ? <Text style={styles.stepMeta}>{stop.addressLine}</Text> : null}
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
+
       {routeSteps.length ? (
         <View style={styles.stepsCard}>
           <Text style={styles.stepsTitle}>Turns & Steps</Text>
           <ScrollView style={styles.stepsList} nestedScrollEnabled>
             {routeSteps.map((step: any, idx: number) => (
               <View key={`step-${idx}`} style={styles.stepRow}>
-                <Text style={styles.stepText}>{idx + 1}. {step.instruction || 'Continue'}</Text>
+                <Text style={styles.stepText}>
+                  {idx + 1}. {step.instruction || 'Continue'}{step.orderId ? ` (${step.orderId})` : ''}
+                </Text>
                 <Text style={styles.stepMeta}>
                   {(Number(step.distanceMeters || 0) / 1000).toFixed(2)} km | {Math.round(Number(step.durationSeconds || 0))} sec
                 </Text>
@@ -362,6 +484,7 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   metaText: { color: COLORS.text, fontWeight: '700' },
   error: { color: COLORS.danger, marginTop: 8, fontWeight: '600' },
+  stopsCard: { marginTop: 10, backgroundColor: '#fff', borderRadius: 12, padding: 10, maxHeight: 160 },
   stepsCard: { marginTop: 10, backgroundColor: '#fff', borderRadius: 12, padding: 10, maxHeight: 200 },
   stepsTitle: { fontWeight: '800', color: COLORS.text, marginBottom: 6 },
   stepsList: { flexGrow: 0 },
@@ -381,6 +504,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#fff' },
+  stopPin: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: COLORS.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  stopPinTxt: { color: '#fff', fontWeight: '800', fontSize: 10 },
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 16 },
   empty: { color: COLORS.muted, textAlign: 'center' },
 });

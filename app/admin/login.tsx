@@ -18,7 +18,7 @@ export default function AdminLoginRedirect() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
-  title: { fontSize: 28, fontWeight: '900' , textAlign: 'center'},
+  title: { fontSize: 28, fontWeight: '900', textAlign: 'center' },
   text: { marginTop: 8 },
   btn: { marginTop: 12, backgroundColor: '#111', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   btnTxt: { color: '#fff', fontWeight: '700' },

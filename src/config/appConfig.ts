@@ -4,6 +4,7 @@ const extra = (Constants.expoConfig?.extra || {}) as {
   apiBaseUrl?: string;
   githubRepo?: string;
   buildNumber?: string;
+  stripePublishableKey?: string;
 };
 
 const getBaseUrl = () => {
@@ -25,9 +26,12 @@ export const BUILD_NUMBER = extra.buildNumber || '1';
 export const RELEASES_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 export const RELEASES_LATEST_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
 export const RAZORPAY_KEY = 'rzp_test_placeholder_key';
-export const STRIPE_KEY = 'pk_test_placeholder_key';
+export const STRIPE_KEY =
+  process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
+  extra.stripePublishableKey ||
+  'pk_test_xxx';
 export const CURRENCY_CODE = 'GBP';
-export const CURRENCY_SYMBOL = '£';
+export const CURRENCY_SYMBOL = '\u00A3';
 
 export const COLORS = {
   bg: '#F4F2EC',
@@ -41,3 +45,4 @@ export const COLORS = {
   chip: '#F0F0F0',
   placeholder: '#97A1AF'
 };
+

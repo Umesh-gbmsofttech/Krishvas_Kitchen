@@ -15,6 +15,7 @@ import { AppTextInput as TextInput } from '../src/components/AppTextInput';
 import { Skeleton } from '../src/components/Skeleton';
 import { formatCurrency } from '../src/utils/format';
 import { WeekDateStrip } from '../src/components/WeekDateStrip';
+import { todayLocalDate } from '../src/utils/date';
 
 export default function HomeScreen() {
   const [menu, setMenu] = useState<any>(null);
@@ -24,7 +25,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [activeFilter, setActiveFilter] = useState('ALL');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState(todayLocalDate());
   const [selectedMealSlot, setSelectedMealSlot] = useState<'ALL' | 'BREAKFAST' | 'LUNCH' | 'DINNER'>('ALL');
   const [dateOverlayVisible, setDateOverlayVisible] = useState(false);
   const [next7Menus, setNext7Menus] = useState<any[]>([]);
@@ -40,7 +41,17 @@ export default function HomeScreen() {
     try {
       const [dailyRes, bannersRes, next7Res] = await Promise.allSettled([api.dailyMenu(selectedDate), api.banners(), api.next7Menus()]);
       if (dailyRes.status === 'fulfilled') {
-        setMenu(dailyRes.value || null);
+        const dailyMenu = dailyRes.value || null;
+        if (dailyMenu && Array.isArray(dailyMenu.items) && dailyMenu.items.length) {
+          setMenu(dailyMenu);
+        } else if (next7Res.status === 'fulfilled') {
+          const upcoming = Array.isArray(next7Res.value) ? next7Res.value : [];
+          const firstWithItems = upcoming.find((m: any) => Array.isArray(m?.items) && m.items.length);
+          setMenu(firstWithItems || dailyMenu);
+          if (firstWithItems?.scheduleDate && !asRefresh) setSelectedDate(firstWithItems.scheduleDate);
+        } else {
+          setMenu(dailyMenu);
+        }
       } else {
         setMenu(null);
       }

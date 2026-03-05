@@ -53,15 +53,12 @@ export const api = {
   verifyDeliveryOtp: (orderId: string, otp: string) => http.patch(`/api/orders/${orderId}/verify-otp`, { otp }).then((r) => r.data),
   updateOrderStatus: (orderId: string, payload: any) => http.patch(`/api/orders/${orderId}/status`, payload).then((r) => r.data),
   assignDelivery: (orderId: string, partnerId: number) => http.patch(`/api/orders/${orderId}/assign/${partnerId}`).then((r) => r.data),
+  assignDeliveryBulk: (partnerId: number, orderIds: string[]) =>
+    http.patch(`/api/orders/assign/bulk/${partnerId}`, { orderIds }).then((r) => r.data),
 
-  applyDelivery: (payload: any) => http.post('/api/delivery-partners/apply', payload).then((r) => r.data),
-  myDeliveryStatus: () => http.get('/api/delivery-partners/my-status').then((r) => r.data),
-  pendingDeliveries: () => http.get('/api/delivery-partners/pending').then((r) => r.data),
   approvedDeliveryPartners: () => http.get('/api/delivery-partners/approved').then((r) => r.data),
-  decideDelivery: (partnerId: number, payload: any) =>
-    http.patch(`/api/delivery-partners/${partnerId}/decision`, payload).then((r) => r.data),
-  updateDeliveryPartner: (partnerId: number, payload: any) =>
-    http.patch(`/api/delivery-partners/${partnerId}`, payload).then((r) => r.data),
+  adminCreateDeliveryPartner: (payload: any) =>
+    http.post('/api/delivery-partners/admin-create', payload).then((r) => r.data),
   deliveryDashboard: () => http.get('/api/delivery-partners/dashboard').then((r) => r.data),
 
   trackingHistory: (orderId: string) => http.get(`/api/tracking/orders/${orderId}`).then((r) => r.data),
@@ -70,6 +67,8 @@ export const api = {
   mapsDirections: (payload: any) => http.post('/api/maps/directions', payload).then((r) => r.data),
 
   payOrder: (orderId: string, payload: any) => http.post(`/api/payments/orders/${orderId}`, payload).then((r) => r.data),
+  stripeCreateIntent: (payload: { amountMinor: number; currency?: string; orderRef?: string; paymentMethodPreference?: string }) =>
+    http.post('/api/stripe/create-intent', payload).then((r) => r.data),
 
   notifications: () => http.get('/api/notifications').then((r) => r.data),
   unreadCount: () => http.get('/api/notifications/unread-count').then((r) => r.data),

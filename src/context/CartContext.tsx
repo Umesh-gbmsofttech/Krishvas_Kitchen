@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, useState } from 'react';
+import { todayLocalDate } from '../utils/date';
 
 export type CartItem = {
   menuItemId?: number;
@@ -25,18 +26,25 @@ const CartContext = createContext<CartContextValue | undefined>(undefined);
 
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [items, setItems] = useState<CartItem[]>([]);
-  const [bookingDate, setBookingDate] = useState(new Date().toISOString().slice(0, 10));
+  const [bookingDate, setBookingDate] = useState(todayLocalDate());
   const [bookingSlot, setBookingSlot] = useState<'ALL' | 'BREAKFAST' | 'LUNCH' | 'DINNER'>('ALL');
 
   const addItem = (item: CartItem) => {
+    const safeUnitPrice = Number(item.unitPrice);
+    const safeQty = Number(item.quantity);
+    const normalized: CartItem = {
+      ...item,
+      unitPrice: Number.isFinite(safeUnitPrice) ? safeUnitPrice : 0,
+      quantity: Number.isFinite(safeQty) && safeQty > 0 ? safeQty : 1,
+    };
     setItems((prev) => {
-      const existing = prev.find((p) => p.itemName === item.itemName);
+      const existing = prev.find((p) => p.itemName === normalized.itemName);
       if (existing) {
         return prev.map((p) =>
-          p.itemName === item.itemName ? { ...p, quantity: p.quantity + item.quantity } : p
+          p.itemName === normalized.itemName ? { ...p, quantity: p.quantity + normalized.quantity } : p
         );
       }
-      return [...prev, item];
+      return [...prev, normalized];
     });
   };
 
@@ -54,7 +62,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const total = useMemo(
-    () => items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
+    () => items.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.quantity || 0), 0),
     [items]
   );
 

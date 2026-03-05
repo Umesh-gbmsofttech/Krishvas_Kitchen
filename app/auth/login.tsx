@@ -87,7 +87,7 @@ export default function LoginScreen() {
           <Text style={styles.toggleText}>{showPassword ? 'Hide' : 'Show'}</Text>
         </Pressable>
       </View>
-      <Pressable onPress={() => {}}>
+      <Pressable onPress={() => { }}>
         <Text style={styles.forgot}>Forgot Password?</Text>
       </Pressable>
 
@@ -113,8 +113,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   skipText: { color: COLORS.accent, fontWeight: '800' },
-  title: { fontSize: 28, fontWeight: '900', color: COLORS.text , textAlign: 'center'},
-  subtitle: { color: COLORS.muted, marginTop: 8, marginBottom: 20 , textAlign: 'center'},
+  title: { fontSize: 28, fontWeight: '900', color: COLORS.text, textAlign: 'center' },
+  subtitle: { color: COLORS.muted, marginTop: 8, marginBottom: 20, textAlign: 'center' },
   input: { backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 12 },
   passwordRow: {
     backgroundColor: '#fff',

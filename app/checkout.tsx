@@ -5,6 +5,8 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 import { COLORS } from '../src/config/appConfig';
 import { AppTextInput as TextInput } from '../src/components/AppTextInput';
 import { KeyboardScreen } from '../src/components/KeyboardScreen';
+import { useCart } from '../src/context/CartContext';
+import { formatCurrency } from '../src/utils/format';
 
 export default function CheckoutScreen() {
   const [addressLine, setAddressLine] = useState('');
@@ -13,6 +15,7 @@ export default function CheckoutScreen() {
   const [fetchingLiveLocation, setFetchingLiveLocation] = useState(false);
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [locationError, setLocationError] = useState('');
+  const { total, items, bookingDate, bookingSlot } = useCart();
   const router = useRouter();
 
   const resolveLiveCoords = async () => {
@@ -40,6 +43,10 @@ export default function CheckoutScreen() {
     try {
       const coords = await resolveLiveCoords();
       if (!coords) return;
+      if (!items.length || total <= 0) {
+        setLocationError('Your cart is empty. Please add menu items first.');
+        return;
+      }
       router.push({
         pathname: '/payment',
         params: {
@@ -82,12 +89,15 @@ export default function CheckoutScreen() {
       <TextInput style={styles.input} value={addressLine} onChangeText={setAddressLine} placeholder="Address line" editable={false} />
       <TextInput style={styles.input} value={apartmentOrSociety} onChangeText={setApartmentOrSociety} placeholder="Apartment / Society" />
       <TextInput style={styles.input} value={flatNumber} onChangeText={setFlatNumber} placeholder="Flat Number" />
+      <Text style={styles.meta}>Booking Date: {bookingDate}</Text>
+      <Text style={styles.meta}>Booking Slot: {bookingSlot}</Text>
+      <Text style={styles.total}>Total: {formatCurrency(total)}</Text>
       {!!locationError ? <Text style={styles.error}>{locationError}</Text> : null}
 
       <Pressable
         style={styles.btn}
         onPress={goToPayment}
-        disabled={fetchingLiveLocation || !locationEnabled}
+        disabled={fetchingLiveLocation || !locationEnabled || !items.length || total <= 0}
       >
         <Text style={styles.btnText}>{fetchingLiveLocation ? 'Fetching live location...' : 'Continue to Payment'}</Text>
       </Pressable>
@@ -100,6 +110,8 @@ const styles = StyleSheet.create({
   content: { padding: 16 },
   title: { fontSize: 26, fontWeight: '900', marginBottom: 12 , textAlign: 'center'},
   input: { backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 10 },
+  meta: { color: COLORS.muted, fontWeight: '600', marginBottom: 2 },
+  total: { color: COLORS.text, fontSize: 18, fontWeight: '800', marginTop: 6, marginBottom: 6 },
   error: { color: COLORS.danger, marginTop: 2, marginBottom: 8 },
   btn: { marginTop: 8, backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 13 },
   btnText: { color: '#fff', fontWeight: '800' },
