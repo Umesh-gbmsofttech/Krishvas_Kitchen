@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '../src/config/appConfig';
 import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
 import { api } from '../src/services/api';
@@ -15,7 +15,6 @@ export default function OrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [otpByOrder, setOtpByOrder] = useState<Record<string, string>>({});
   const [verifyingOrderId, setVerifyingOrderId] = useState<string | null>(null);
   const [expandedByOrder, setExpandedByOrder] = useState<Record<string, boolean>>({});
   const [detailsVisible, setDetailsVisible] = useState(false);
@@ -130,6 +129,11 @@ export default function OrdersScreen() {
           </View>
         </View>
       ) : null}
+      {!loading && isDeliveryPartner ? (
+        <Pressable style={styles.openMapBtn} onPress={() => router.push('/delivery/map-view')}>
+          <Text style={styles.openMapBtnTxt}>Open Delivery Map</Text>
+        </Pressable>
+      ) : null}
       {!loading && isDeliveryPartner ? <Text style={styles.assignedHeading}>Assigned Orders</Text> : null}
       {!loading && !filtered.length ? <Text style={styles.empty}>{isDeliveryPartner ? 'No assigned orders found.' : 'No orders found.'}</Text> : null}
       {visible.map((order) => {
@@ -164,18 +168,6 @@ export default function OrdersScreen() {
               <Text style={styles.meta}><Text style={styles.metaLabel}>Distance:</Text> {Number(order.distanceKm || 0).toFixed(1)} km</Text>
               {!closed ? (
                 <>
-                  <View style={styles.actionRow}>
-                    <Pressable style={styles.actionBtn} onPress={() => router.push({ pathname: '/delivery/map-view', params: { orderId: order.orderId } })}>
-                      <Text style={styles.actionText}>View in Map</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.actionBtn, styles.callBtn, !order.customerPhone && styles.disabledBtn]}
-                      disabled={!order.customerPhone}
-                      onPress={() => Linking.openURL(`tel:${order.customerPhone}`)}
-                    >
-                      <Text style={styles.callText}>Call User</Text>
-                    </Pressable>
-                  </View>
                   {order.status === 'CONFIRMED' && !order.deliveryAccepted ? (
                     <Pressable
                       style={[styles.verifyBtn, verifyingOrderId === order.orderId && styles.disabledBtn]}
@@ -185,6 +177,7 @@ export default function OrdersScreen() {
                         try {
                           await api.acceptAssignedOrder(order.orderId);
                           await loadOrders(true);
+                          router.push({ pathname: '/delivery/map-view', params: { orderId: order.orderId } });
                         } catch (e: any) {
                           setError(e?.response?.data?.message || `Unable to accept delivery (${e?.response?.status || 'NO_STATUS'})`);
                         } finally {
@@ -194,38 +187,14 @@ export default function OrdersScreen() {
                     >
                       <Text style={styles.verifyText}>{verifyingOrderId === order.orderId ? 'Accepting...' : 'Accept Delivery Request'}</Text>
                     </Pressable>
-                  ) : null}
-                  {order.status === 'OUT_FOR_DELIVERY' ? (
+                  ) : (
                     <>
-                      <TextInput
-                        value={otpByOrder[order.orderId] || ''}
-                        onChangeText={(v) => setOtpByOrder((prev) => ({ ...prev, [order.orderId]: v }))}
-                        placeholder="Enter customer OTP"
-                        keyboardType="number-pad"
-                        style={styles.otpInput}
-                      />
-                      <Pressable
-                        style={[styles.verifyBtn, verifyingOrderId === order.orderId && styles.disabledBtn]}
-                        disabled={verifyingOrderId === order.orderId || !(otpByOrder[order.orderId] || '').trim()}
-                        onPress={async () => {
-                          const otp = (otpByOrder[order.orderId] || '').trim();
-                          if (!otp) return;
-                          setVerifyingOrderId(order.orderId);
-                          try {
-                            await api.verifyDeliveryOtp(order.orderId, otp);
-                            setOtpByOrder((prev) => ({ ...prev, [order.orderId]: '' }));
-                            await loadOrders(true);
-                          } catch (e: any) {
-                            setError(e?.response?.data?.message || `OTP verification failed (${e?.response?.status || 'NO_STATUS'})`);
-                          } finally {
-                            setVerifyingOrderId(null);
-                          }
-                        }}
-                      >
-                        <Text style={styles.verifyText}>{verifyingOrderId === order.orderId ? 'Verifying...' : 'Verify OTP & Complete'}</Text>
+                      <Text style={styles.minHint}>Use single Delivery Map screen for route, calling customer and OTP completion.</Text>
+                      <Pressable style={styles.openMapInlineBtn} onPress={() => router.push({ pathname: '/delivery/map-view', params: { orderId: order.orderId } })}>
+                        <Text style={styles.openMapInlineBtnTxt}>Open Delivery Map</Text>
                       </Pressable>
                     </>
-                  ) : null}
+                  )}
                 </>
               ) : (
                 <Pressable style={styles.detailsBtn} onPress={() => openOrderDetails(order.orderId)}>
@@ -305,6 +274,8 @@ const styles = StyleSheet.create({
   driverSummaryLabelDark: { color: '#8C5A4E', fontWeight: '700', marginBottom: 8 },
   driverSummaryValueDark: { color: '#5B2222', fontSize: 32, fontWeight: '900' },
   assignedHeading: { fontSize: 35, fontWeight: '800', color: COLORS.text, marginTop: 2, marginBottom: 2 },
+  openMapBtn: { marginTop: 8, backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 11 },
+  openMapBtnTxt: { color: '#fff', fontWeight: '800' },
   search: { marginTop: 10, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11 },
   empty: { color: COLORS.muted, marginTop: 12 },
   error: { color: COLORS.danger, marginTop: 8 },
@@ -317,14 +288,10 @@ const styles = StyleSheet.create({
   amount: { marginTop: 5, color: COLORS.accent, fontWeight: '700' },
   meta: { marginTop: 4, color: COLORS.text },
   metaLabel: { fontWeight: '700' },
-  actionRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  actionBtn: { flex: 1, borderRadius: 10, alignItems: 'center', paddingVertical: 10, backgroundColor: COLORS.text },
-  actionText: { color: '#fff', fontWeight: '700' },
-  callBtn: { backgroundColor: COLORS.accent },
-  callText: { color: '#fff', fontWeight: '700' },
-  otpInput: { marginTop: 10, backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: '#E6E6E6' },
   verifyBtn: { marginTop: 8, backgroundColor: COLORS.text, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
   verifyText: { color: '#fff', fontWeight: '700' },
+  openMapInlineBtn: { marginTop: 8, backgroundColor: COLORS.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
+  openMapInlineBtnTxt: { color: '#fff', fontWeight: '700' },
   detailsBtn: { marginTop: 8, backgroundColor: COLORS.text, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
   detailsText: { color: '#fff', fontWeight: '700' },
   minimizeBtn: { marginTop: 8, alignSelf: 'flex-end', paddingHorizontal: 8, paddingVertical: 4 },

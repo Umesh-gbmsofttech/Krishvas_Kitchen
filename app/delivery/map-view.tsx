@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 import * as Location from 'expo-location';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '../../src/config/appConfig';
 import { api } from '../../src/services/api';
 
@@ -47,6 +47,8 @@ type Stop = {
   status?: string;
   customerName?: string;
   addressLine?: string;
+  customerPhone?: string;
+  deliveryAccepted?: boolean;
 };
 
 const ACTIVE_DELIVERY_STATUSES = ['CONFIRMED', 'OUT_FOR_DELIVERY', 'PREPARING', 'PLACED'];
@@ -102,6 +104,8 @@ export default function DeliveryMapViewScreen() {
   const [routeSteps, setRouteSteps] = useState<any[]>([]);
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [durationMinutes, setDurationMinutes] = useState<number | null>(null);
+  const [otpByOrder, setOtpByOrder] = useState<Record<string, string>>({});
+  const [verifyingOrderId, setVerifyingOrderId] = useState<string | null>(null);
   const [routing, setRouting] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [routeError, setRouteError] = useState('');
@@ -168,6 +172,8 @@ export default function DeliveryMapViewScreen() {
           status: String(o.status || ''),
           customerName: o.customerName || '',
           addressLine: o.addressLine || '',
+          customerPhone: o.customerPhone || '',
+          deliveryAccepted: Boolean(o.deliveryAccepted),
         }));
         if (!active) return;
         setAssignedStops(stops);
@@ -425,6 +431,82 @@ export default function DeliveryMapViewScreen() {
                 <Text style={styles.stepText}>{idx + 1}. {stop.orderId}</Text>
                 <Text style={styles.stepMeta}>{stop.status || ''}{stop.customerName ? ` | ${stop.customerName}` : ''}</Text>
                 {!!stop.addressLine ? <Text style={styles.stepMeta}>{stop.addressLine}</Text> : null}
+                <View style={styles.stopActionRow}>
+                  <Pressable
+                    style={[styles.smallBtn, !stop.customerPhone && styles.smallBtnDisabled]}
+                    disabled={!stop.customerPhone}
+                    onPress={() => Linking.openURL(`tel:${stop.customerPhone}`)}
+                  >
+                    <Text style={styles.smallBtnText}>Call Recipient</Text>
+                  </Pressable>
+                </View>
+                {String(stop.status || '').toUpperCase() === 'OUT_FOR_DELIVERY' ? (
+                  <>
+                    <View style={styles.otpRow}>
+                      <Text style={styles.stepMeta}>Enter OTP:</Text>
+                      <View style={styles.otpBox}>
+                        <Pressable style={styles.otpAdjust} onPress={() => setOtpByOrder((prev) => ({ ...prev, [stop.orderId]: '' }))}>
+                          <Text style={styles.otpAdjustTxt}>Clear</Text>
+                        </Pressable>
+                        <Text style={styles.otpValue}>{otpByOrder[stop.orderId] || '----'}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.otpPad}>
+                      {'1234567890'.split('').map((n) => (
+                        <Pressable
+                          key={`${stop.orderId}-${n}`}
+                          style={styles.otpPadBtn}
+                          onPress={() =>
+                            setOtpByOrder((prev) => {
+                              const curr = String(prev[stop.orderId] || '');
+                              if (curr.length >= 6) return prev;
+                              return { ...prev, [stop.orderId]: `${curr}${n}` };
+                            })
+                          }
+                        >
+                          <Text style={styles.otpPadTxt}>{n}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    <Pressable
+                      style={[styles.smallBtnDark, (verifyingOrderId === stop.orderId || !(otpByOrder[stop.orderId] || '').trim()) && styles.smallBtnDisabled]}
+                      disabled={verifyingOrderId === stop.orderId || !(otpByOrder[stop.orderId] || '').trim()}
+                      onPress={async () => {
+                        const otp = (otpByOrder[stop.orderId] || '').trim();
+                        if (!otp) return;
+                        setVerifyingOrderId(stop.orderId);
+                        try {
+                          await api.verifyDeliveryOtp(stop.orderId, otp);
+                          setOtpByOrder((prev) => ({ ...prev, [stop.orderId]: '' }));
+                          const assigned = await api.myAssignedOrders().catch(() => []);
+                          const activeAssigned = (assigned || []).filter((o: any) => {
+                            const lat = toNum(o?.latitude);
+                            const lng = toNum(o?.longitude);
+                            const status = String(o?.status || '').toUpperCase();
+                            return lat !== null && lng !== null && ACTIVE_DELIVERY_STATUSES.includes(status) && !CLOSED_STATUSES.includes(status);
+                          });
+                          const refreshedStops: Stop[] = activeAssigned.map((o: any) => ({
+                            orderId: String(o.orderId),
+                            latitude: Number(o.latitude),
+                            longitude: Number(o.longitude),
+                            status: String(o.status || ''),
+                            customerName: o.customerName || '',
+                            addressLine: o.addressLine || '',
+                            customerPhone: o.customerPhone || '',
+                            deliveryAccepted: Boolean(o.deliveryAccepted),
+                          }));
+                          setAssignedStops(refreshedStops);
+                        } catch {
+                          // silent, routeError is already used for route concerns
+                        } finally {
+                          setVerifyingOrderId(null);
+                        }
+                      }}
+                    >
+                      <Text style={styles.smallBtnText}>{verifyingOrderId === stop.orderId ? 'Verifying...' : 'Verify OTP & Complete'}</Text>
+                    </Pressable>
+                  </>
+                ) : null}
               </View>
             ))}
           </ScrollView>
@@ -491,6 +573,19 @@ const styles = StyleSheet.create({
   stepRow: { paddingVertical: 6, borderBottomColor: '#EEE', borderBottomWidth: 1 },
   stepText: { color: COLORS.text, fontWeight: '600', fontSize: 12 },
   stepMeta: { color: COLORS.muted, fontSize: 11, marginTop: 2 },
+  stopActionRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
+  smallBtn: { backgroundColor: COLORS.accent, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  smallBtnDark: { marginTop: 8, backgroundColor: COLORS.text, borderRadius: 8, alignItems: 'center', paddingVertical: 9 },
+  smallBtnText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  smallBtnDisabled: { opacity: 0.45 },
+  otpRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  otpBox: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  otpAdjust: { backgroundColor: '#EFEFEF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  otpAdjustTxt: { color: COLORS.text, fontWeight: '700', fontSize: 11 },
+  otpValue: { color: COLORS.text, fontWeight: '800', letterSpacing: 1.5 },
+  otpPad: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  otpPadBtn: { width: 32, height: 30, borderRadius: 6, backgroundColor: '#F2F2F2', alignItems: 'center', justifyContent: 'center' },
+  otpPadTxt: { color: COLORS.text, fontWeight: '700', fontSize: 12 },
   fullScreen: { flex: 1, backgroundColor: '#000' },
   closeBtn: {
     position: 'absolute',

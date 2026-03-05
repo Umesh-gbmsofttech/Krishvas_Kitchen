@@ -87,6 +87,9 @@ export default function CheckoutScreen() {
     <KeyboardScreen containerStyle={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Checkout Address</Text>
       <TextInput style={styles.input} value={addressLine} onChangeText={setAddressLine} placeholder="Address line" editable={false} />
+      <Text style={styles.precaution}>
+        We recommend you to place your order from the exact location where you want to receive your meal.
+      </Text>
       <TextInput style={styles.input} value={apartmentOrSociety} onChangeText={setApartmentOrSociety} placeholder="Apartment / Society" />
       <TextInput style={styles.input} value={flatNumber} onChangeText={setFlatNumber} placeholder="Flat Number" />
       <Text style={styles.meta}>Booking Date: {bookingDate}</Text>
@@ -110,6 +113,7 @@ const styles = StyleSheet.create({
   content: { padding: 16 },
   title: { fontSize: 26, fontWeight: '900', marginBottom: 12 , textAlign: 'center'},
   input: { backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 10 },
+  precaution: { color: COLORS.muted, fontWeight: '600', marginBottom: 10 },
   meta: { color: COLORS.muted, fontWeight: '600', marginBottom: 2 },
   total: { color: COLORS.text, fontSize: 18, fontWeight: '800', marginTop: 6, marginBottom: 6 },
   error: { color: COLORS.danger, marginTop: 2, marginBottom: 8 },

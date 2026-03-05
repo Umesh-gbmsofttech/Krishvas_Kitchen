@@ -10,8 +10,32 @@ import { AppTextInput as TextInput } from '../src/components/AppTextInput';
 import { Skeleton } from '../src/components/Skeleton';
 import { formatCurrency } from '../src/utils/format';
 
+const mergeMenusForDate = (menus: any[], date?: string) => {
+  const valid = (menus || []).filter((m) => Array.isArray(m?.items) && m.items.length);
+  if (!valid.length) return null;
+  if (valid.length === 1) return valid[0];
+
+  const slotSet = new Set<string>();
+  valid.forEach((m: any) =>
+    String(m?.mealSlots || 'ALL')
+      .split(',')
+      .map((s: string) => s.trim().toUpperCase())
+      .filter(Boolean)
+      .forEach((s: string) => slotSet.add(s))
+  );
+  if (!slotSet.size) slotSet.add('ALL');
+
+  return {
+    id: `merged-${date || 'today'}`,
+    title: "Today's Menu",
+    scheduleDate: date,
+    mealSlots: slotSet.has('ALL') ? 'ALL' : Array.from(slotSet).join(','),
+    items: valid.flatMap((m: any) => (Array.isArray(m?.items) ? m.items : [])),
+  };
+};
+
 export default function TodaysMenuScreen() {
-  const params = useLocalSearchParams<{ slot?: string }>();
+  const params = useLocalSearchParams<{ slot?: string; date?: string }>();
   const [menu, setMenu] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -20,25 +44,42 @@ export default function TodaysMenuScreen() {
   const debouncedSearch = useDebouncedValue(search, 350);
   const router = useRouter();
   const selectedSlot = String(params.slot || 'ALL').toUpperCase();
+  const selectedDate = params.date ? String(params.date) : undefined;
 
   const load = useCallback(async (asRefresh = false) => {
     if (asRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [daily, next7] = await Promise.all([api.dailyMenu(), api.next7Menus().catch(() => [])]);
-      const primary = daily || null;
+      const [dailyByDate, dailyDefault, next7] = await Promise.all([
+        selectedDate ? api.dailyMenu(selectedDate).catch(() => null) : Promise.resolve(null),
+        api.dailyMenu().catch(() => null),
+        api.next7Menus().catch(() => []),
+      ]);
+      const datePreferred = dailyByDate || dailyDefault;
+      const primary = datePreferred || null;
+      const upcoming = Array.isArray(next7) ? next7 : [];
+      const dateKey = selectedDate || String(primary?.scheduleDate || '');
+      const sameDateMenus = dateKey
+        ? upcoming.filter((m: any) => String(m?.scheduleDate || '') === dateKey && Array.isArray(m?.items) && m.items.length)
+        : [];
+      const mergedSameDate = mergeMenusForDate(sameDateMenus, dateKey);
+      if (mergedSameDate) {
+        setMenu(mergedSameDate);
+        return;
+      }
+
       if (primary && Array.isArray(primary.items) && primary.items.length) {
         setMenu(primary);
-      } else {
-        const upcoming = Array.isArray(next7) ? next7 : [];
-        const firstWithItems = upcoming.find((m: any) => Array.isArray(m?.items) && m.items.length);
-        setMenu(firstWithItems || primary);
+        return;
       }
+
+      const firstWithItems = upcoming.find((m: any) => Array.isArray(m?.items) && m.items.length);
+      setMenu(firstWithItems || primary);
     } finally {
       if (asRefresh) setRefreshing(false);
       else setLoading(false);
     }
-  }, []);
+  }, [selectedDate]);
 
   useEffect(() => {
     load(false).catch(() => setLoading(false));

@@ -63,6 +63,8 @@ const normalizeMenus = (list: any[]): ScheduledMenuVM[] =>
     })
     .filter((m) => m.id > 0);
 
+const sameDate = (a?: string, b?: string) => String(a || '').trim() === String(b || '').trim();
+
 export default function MenuSchedulerScreen() {
   const getToday = () => formatLocalDate(new Date(Date.now()));
   const [title, setTitle] = useState('');
@@ -168,6 +170,11 @@ export default function MenuSchedulerScreen() {
     setSaving(true);
     setError('');
     try {
+      if (!editingMenuId && scheduled.some((m) => sameDate(m.scheduleDate, scheduleDate))) {
+        Alert.alert('Menu Already Exists', 'Menu is present for selected date. Please edit the existing menu.');
+        return;
+      }
+
       const payloadItems = await Promise.all(
         items.map(async (item) => {
           let imageUrl = item.existingImageUrl || 'mutton.jpg';

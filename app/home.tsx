@@ -17,6 +17,31 @@ import { formatCurrency } from '../src/utils/format';
 import { WeekDateStrip } from '../src/components/WeekDateStrip';
 import { todayLocalDate } from '../src/utils/date';
 
+const mergeMenusForDate = (menus: any[], date: string) => {
+  const valid = (menus || []).filter((m) => Array.isArray(m?.items) && m.items.length);
+  if (!valid.length) return null;
+  if (valid.length === 1) return valid[0];
+
+  const slotSet = new Set<string>();
+  valid.forEach((m: any) =>
+    String(m?.mealSlots || 'ALL')
+      .split(',')
+      .map((s: string) => s.trim().toUpperCase())
+      .filter(Boolean)
+      .forEach((s: string) => slotSet.add(s))
+  );
+  if (!slotSet.size) slotSet.add('ALL');
+
+  return {
+    id: `merged-${date}`,
+    title: "Today's Menu",
+    description: `Total menus: ${valid.length}`,
+    scheduleDate: date,
+    mealSlots: slotSet.has('ALL') ? 'ALL' : Array.from(slotSet).join(','),
+    items: valid.flatMap((m: any) => (Array.isArray(m?.items) ? m.items : [])),
+  };
+};
+
 export default function HomeScreen() {
   const [menu, setMenu] = useState<any>(null);
   const [banners, setBanners] = useState<any[]>([]);
@@ -39,18 +64,31 @@ export default function HomeScreen() {
     if (asRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [dailyRes, bannersRes, next7Res] = await Promise.allSettled([api.dailyMenu(selectedDate), api.banners(), api.next7Menus()]);
+      const [dailyRes, bannersRes, next7Res] = await Promise.allSettled([api.dailyMenu(), api.banners(), api.next7Menus()]);
       if (dailyRes.status === 'fulfilled') {
         const dailyMenu = dailyRes.value || null;
-        if (dailyMenu && Array.isArray(dailyMenu.items) && dailyMenu.items.length) {
-          setMenu(dailyMenu);
-        } else if (next7Res.status === 'fulfilled') {
+        if (next7Res.status === 'fulfilled') {
           const upcoming = Array.isArray(next7Res.value) ? next7Res.value : [];
+          const sameDateMenus = upcoming.filter(
+            (m: any) => String(m?.scheduleDate || '') === selectedDate && Array.isArray(m?.items) && m.items.length
+          );
+          const mergedSameDate = mergeMenusForDate(sameDateMenus, selectedDate);
+          if (mergedSameDate) {
+            setMenu(mergedSameDate);
+          } else {
+          const exactSelected = upcoming.find((m: any) => m?.scheduleDate === selectedDate && Array.isArray(m?.items) && m.items.length);
           const firstWithItems = upcoming.find((m: any) => Array.isArray(m?.items) && m.items.length);
-          setMenu(firstWithItems || dailyMenu);
-          if (firstWithItems?.scheduleDate && !asRefresh) setSelectedDate(firstWithItems.scheduleDate);
+          if (exactSelected) {
+            setMenu(exactSelected);
+          } else if (dailyMenu && Array.isArray(dailyMenu.items) && dailyMenu.items.length) {
+            setMenu(dailyMenu);
+          } else {
+            setMenu(firstWithItems || dailyMenu);
+            if (firstWithItems?.scheduleDate && !asRefresh) setSelectedDate(firstWithItems.scheduleDate);
+          }
+          }
         } else {
-          setMenu(dailyMenu);
+          setMenu(dailyMenu && Array.isArray(dailyMenu.items) && dailyMenu.items.length ? dailyMenu : null);
         }
       } else {
         setMenu(null);
@@ -79,6 +117,12 @@ export default function HomeScreen() {
     () => ['ALL', ...Array.from(new Set<string>((menu?.items || []).map((i: any) => String(i.category))))],
     [menu]
   );
+
+  useEffect(() => {
+    if (!filters.includes(activeFilter)) {
+      setActiveFilter('ALL');
+    }
+  }, [filters, activeFilter]);
 
   useEffect(() => {
     setPage(1);
@@ -172,14 +216,6 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-        {filters.map((filter) => (
-          <Pressable key={filter} onPress={() => setActiveFilter(filter)} style={[styles.chip, activeFilter === filter && styles.chipActive]}>
-            <Text style={[styles.chipText, activeFilter === filter && styles.chipTextActive]}>{filter}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
       <View style={styles.slotRow}>
         {(['ALL', 'BREAKFAST', 'LUNCH', 'DINNER'] as const).map((slot) => (
           <Pressable
@@ -213,7 +249,7 @@ export default function HomeScreen() {
           onPress={() =>
             router.push({
               pathname: '/todays-menu',
-              params: { slot: meal.key.toUpperCase() },
+              params: { slot: meal.key.toUpperCase(), date: selectedDate },
             })
           }
         >

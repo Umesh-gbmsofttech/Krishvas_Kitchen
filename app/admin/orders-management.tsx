@@ -30,7 +30,6 @@ const formatLocalDate = (d: Date) => {
 export default function OrdersManagementScreen() {
   const [orders, setOrders] = useState<any[]>([]);
   const [partners, setPartners] = useState<any[]>([]);
-  const [selectedPartnerByOrder, setSelectedPartnerByOrder] = useState<Record<string, number>>({});
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [bulkPartnerId, setBulkPartnerId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,10 +88,6 @@ export default function OrdersManagementScreen() {
       });
   }, [orders, debouncedQuery, selectedDate, selectedStatus]);
   const visible = useMemo(() => paginate(filtered, page), [filtered, page]);
-  const selectedOrderPartner = useCallback(
-    (orderId: string) => partners.find((p) => p.id === selectedPartnerByOrder[orderId]),
-    [partners, selectedPartnerByOrder]
-  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -127,21 +122,30 @@ export default function OrdersManagementScreen() {
       <View style={styles.bulkRow}>
         <Text style={styles.bulkMeta}>Selected: {selectedOrderIds.length}</Text>
         <Pressable style={styles.bulkBtn} onPress={() => setPickerOrderId('__bulk__')}>
-          <Text style={styles.bulkBtnTxt}>{bulkPartnerId ? 'Change Bulk Partner' : 'Select Bulk Partner'}</Text>
+          <Text style={styles.bulkBtnTxt}>{bulkPartnerId ? 'Change Delivery Partner' : 'Select Delivery Partner'}</Text>
         </Pressable>
         <Pressable
           style={[styles.bulkBtnDark, (selectedOrderIds.length === 0 || !bulkPartnerId) && styles.bulkBtnDisabled]}
           disabled={selectedOrderIds.length === 0 || !bulkPartnerId}
           onPress={async () => {
-            const limited = selectedOrderIds.slice(0, 50);
-            await api.assignDeliveryBulk(bulkPartnerId!, limited);
-            await load();
-            setSelectedOrderIds([]);
+            if (submittingOrderId) return;
+            setSubmittingOrderId('__bulk__');
+            try {
+              const limited = selectedOrderIds.slice(0, 50);
+              await api.assignDeliveryBulk(bulkPartnerId!, limited);
+              await load();
+              setSelectedOrderIds([]);
+            } catch (e: any) {
+              setError(e?.response?.data?.message || `Unable to assign delivery partner (${e?.response?.status || 'NO_STATUS'})`);
+            } finally {
+              setSubmittingOrderId(null);
+            }
           }}
         >
-          <Text style={styles.bulkBtnTxtWhite}>Assign up to 50</Text>
+          <Text style={styles.bulkBtnTxtWhite}>{submittingOrderId === '__bulk__' ? 'Assigning...' : 'Assign Selected (Max 50)'}</Text>
         </Pressable>
       </View>
+      <Text style={styles.futureNote}>Only today orders are assigned. Future/closed orders are ignored by server.</Text>
       <TextInput value={query} onChangeText={setQuery} placeholder="Search orders" style={styles.search} />
       {!!error ? <Text style={styles.error}>{error}</Text> : null}
       {loading
@@ -177,7 +181,6 @@ export default function OrdersManagementScreen() {
           ) : null}
           {(() => {
             const statusText = String(order.status || '').toUpperCase();
-            const isDelivered = statusText === 'DELIVERED';
             const isClosed = ['DELIVERED', 'CANCELLED', 'FAILED'].includes(statusText);
             return (
               <>
@@ -224,34 +227,18 @@ export default function OrdersManagementScreen() {
           ) : null}
           {partners.length ? (
             <>
-              {!isDelivered ? (
-                <Pressable style={styles.selectBtn} onPress={() => setPickerOrderId(order.orderId)}>
-                  <Text style={styles.selectBtnTxt}>
-                    {selectedPartnerByOrder[order.orderId] || order?.deliveryPartner?.id ? 'Change Delivery Partner' : 'Select Delivery Partner'}
-                  </Text>
-                </Pressable>
-              ) : null}
-
-              {(selectedOrderPartner(order.orderId) || order?.deliveryPartner) ? (
+              {order?.deliveryPartner ? (
                 <View style={styles.partnerCard}>
                   <Image
                     source={
                       resolveImageUrl(
-                        selectedOrderPartner(order.orderId)?.user?.profileImageUrl ||
-                          (selectedOrderPartner(order.orderId)?.user?.profileImageId
-                            ? `/api/images/${selectedOrderPartner(order.orderId)?.user?.profileImageId}`
-                            : null) ||
                           order?.deliveryPartner?.user?.profileImageUrl ||
                           (order?.deliveryPartner?.user?.profileImageId
                             ? `/api/images/${order?.deliveryPartner?.user?.profileImageId}`
                             : null)
                       )
                         ? {
-                            uri: resolveImageUrl(
-                              selectedOrderPartner(order.orderId)?.user?.profileImageUrl ||
-                                (selectedOrderPartner(order.orderId)?.user?.profileImageId
-                                  ? `/api/images/${selectedOrderPartner(order.orderId)?.user?.profileImageId}`
-                                  : null) ||
+                          uri: resolveImageUrl(
                                 order?.deliveryPartner?.user?.profileImageUrl ||
                                 (order?.deliveryPartner?.user?.profileImageId
                                   ? `/api/images/${order?.deliveryPartner?.user?.profileImageId}`
@@ -264,44 +251,19 @@ export default function OrdersManagementScreen() {
                   />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.partnerName}>
-                      {selectedOrderPartner(order.orderId)?.user?.fullName || order?.deliveryPartner?.user?.fullName || 'Delivery Partner'}
+                      {order?.deliveryPartner?.user?.fullName || 'Delivery Partner'}
                     </Text>
                     <Text style={styles.partnerMeta}>
-                      {selectedOrderPartner(order.orderId)?.user?.email || order?.deliveryPartner?.user?.email || 'No email'}
+                      {order?.deliveryPartner?.user?.email || 'No email'}
                     </Text>
                     <Text style={styles.partnerMeta}>
-                      {selectedOrderPartner(order.orderId)?.vehicleType || order?.deliveryPartner?.vehicleType || '-'} |{' '}
-                      {selectedOrderPartner(order.orderId)?.vehicleNumber || order?.deliveryPartner?.vehicleNumber || '-'}
+                      {order?.deliveryPartner?.vehicleType || '-'} | {order?.deliveryPartner?.vehicleNumber || '-'}
                     </Text>
                     <Text style={styles.partnerMeta}>
                       Delivery Acceptance: {order?.deliveryAccepted ? 'Accepted' : 'Pending'}
                     </Text>
                   </View>
                 </View>
-              ) : null}
-
-              {!isDelivered ? (
-                <Pressable
-                  style={styles.assign}
-                  disabled={submittingOrderId === order.orderId || String(order.orderDate || '') !== formatLocalDate(new Date())}
-                  onPress={async () => {
-                    if (submittingOrderId) return;
-                    const selectedId = selectedPartnerByOrder[order.orderId];
-                    if (!selectedId) return;
-                    setSubmittingOrderId(order.orderId);
-                    try {
-                      await api.assignDelivery(order.orderId, selectedId);
-                      await load();
-                    } finally {
-                      setSubmittingOrderId(null);
-                    }
-                  }}
-                >
-                  <Text style={{ color: '#fff' }}>{submittingOrderId === order.orderId ? 'Sending...' : 'Assign Delivery Partner'}</Text>
-                </Pressable>
-              ) : null}
-              {!isDelivered && String(order.orderDate || '') !== formatLocalDate(new Date()) ? (
-                <Text style={styles.futureNote}>Delivery assignment allowed only for today orders.</Text>
               ) : null}
             </>
           ) : null}
@@ -319,22 +281,14 @@ export default function OrdersManagementScreen() {
                 const imageUri = resolveImageUrl(
                   partner.user?.profileImageUrl || (partner.user?.profileImageId ? `/api/images/${partner.user.profileImageId}` : null)
                 );
-                const active = pickerOrderId === '__bulk__'
-                  ? bulkPartnerId === partner.id
-                  : pickerOrderId
-                    ? selectedPartnerByOrder[pickerOrderId] === partner.id
-                    : false;
+                const active = bulkPartnerId === partner.id;
                 return (
                   <Pressable
                     key={`partner-pick-${partner.id}`}
                     style={[styles.partnerPickRow, active && styles.partnerPickRowActive]}
                     onPress={() => {
                       if (!pickerOrderId) return;
-                      if (pickerOrderId === '__bulk__') {
-                        setBulkPartnerId(partner.id);
-                      } else {
-                        setSelectedPartnerByOrder((prev) => ({ ...prev, [pickerOrderId]: partner.id }));
-                      }
+                      setBulkPartnerId(partner.id);
                       setPickerOrderId(null);
                     }}
                   >
