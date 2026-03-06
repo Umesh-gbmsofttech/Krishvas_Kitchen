@@ -79,7 +79,7 @@ export default function SearchScreen() {
       {visible.map((item: any) => (
         <Pressable key={item.id} style={styles.card} onPress={() => router.push({ pathname: '/item-details', params: { item: JSON.stringify(item) } })}>
           <Image
-            source={resolveImageUrl(item.imageUrl) ? { uri: resolveImageUrl(item.imageUrl)! } : require('../assets/images/mutton.jpg')}
+            source={resolveImageUrl(item.imageUrl) ? { uri: resolveImageUrl(item.imageUrl)! } : require('../assets/images/KrishvasKitchen_transparent.png')}
             style={styles.image}
           />
           <View style={{ flex: 1 }}>

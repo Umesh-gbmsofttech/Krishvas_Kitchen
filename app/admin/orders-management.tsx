@@ -245,7 +245,7 @@ export default function OrdersManagementScreen() {
                                   : null)
                             )!,
                           }
-                        : require('../../assets/images/mutton.jpg')
+                        : require('../../assets/images/KrishvasKitchen_transparent.png')
                     }
                     style={styles.partnerAvatar}
                   />
@@ -292,7 +292,7 @@ export default function OrdersManagementScreen() {
                       setPickerOrderId(null);
                     }}
                   >
-                    <Image source={imageUri ? { uri: imageUri } : require('../../assets/images/mutton.jpg')} style={styles.partnerPickAvatar} />
+                    <Image source={imageUri ? { uri: imageUri } : require('../../assets/images/KrishvasKitchen_transparent.png')} style={styles.partnerPickAvatar} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.partnerPickName}>{partner.user?.fullName || `Partner #${partner.id}`}</Text>
                       <Text style={styles.partnerPickMeta}>{partner.user?.email || 'No email'}</Text>

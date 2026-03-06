@@ -30,7 +30,7 @@ export default function CartScreen() {
       {items.map((item) => (
         <View style={styles.card} key={item.itemName}>
           <Image
-            source={resolveImageUrl(item.imageUrl) ? { uri: resolveImageUrl(item.imageUrl)! } : require('../assets/images/mutton.jpg')}
+            source={resolveImageUrl(item.imageUrl) ? { uri: resolveImageUrl(item.imageUrl)! } : require('../assets/images/KrishvasKitchen_transparent.png')}
             style={styles.image}
           />
           <View style={{ flex: 1 }}>

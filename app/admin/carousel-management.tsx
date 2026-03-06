@@ -126,7 +126,7 @@ export default function CarouselManagementScreen() {
       {heroBanners.map((banner) => (
         <View key={banner.id} style={styles.card}>
           <Image
-            source={resolveImageUrl(banner.imageUrl) ? { uri: resolveImageUrl(banner.imageUrl)! } : require('../../assets/images/mutton.jpg')}
+            source={resolveImageUrl(banner.imageUrl) ? { uri: resolveImageUrl(banner.imageUrl)! } : require('../../assets/images/KrishvasKitchen_transparent.png')}
             style={styles.heroThumb}
           />
           <Text style={styles.bold}>{banner.title}</Text>

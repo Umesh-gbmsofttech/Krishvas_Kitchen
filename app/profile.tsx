@@ -144,7 +144,7 @@ export default function ProfileScreen() {
     <>
       <ScrollView style={styles.screen} contentContainerStyle={{ padding: 16 }}>
         <View style={styles.card}>
-          <Image source={profileUri ? { uri: profileUri } : require('../assets/images/mutton.jpg')} style={styles.avatar} />
+          <Image source={profileUri ? { uri: profileUri } : require('../assets/images/KrishvasKitchen_transparent.png')} style={styles.avatar} />
           <Text style={styles.name}>{user?.fullName}</Text>
           <Text>{user?.email}</Text>
           <Text style={styles.role}>Role: {user?.role}</Text>
@@ -313,7 +313,7 @@ export default function ProfileScreen() {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Edit Profile</Text>
             <Pressable onPress={pickProfileImage} style={styles.imagePicker}>
-              <Image source={previewUri ? { uri: previewUri } : require('../assets/images/mutton.jpg')} style={styles.previewImage} />
+              <Image source={previewUri ? { uri: previewUri } : require('../assets/images/KrishvasKitchen_transparent.png')} style={styles.previewImage} />
               <Text style={styles.imagePickerText}>{selectedImageUri ? 'Change selected image' : 'Select profile image'}</Text>
             </Pressable>
             <TextInput value={fullName} onChangeText={setFullName} placeholder="Full Name" style={styles.input} />

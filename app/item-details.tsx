@@ -11,7 +11,7 @@ export default function ItemDetailsScreen() {
   const router = useRouter();
   const { addItem } = useCart();
   const parsed = item ? JSON.parse(item) : null;
-  const imageSource = resolveImageUrl(parsed?.imageUrl) ? { uri: resolveImageUrl(parsed.imageUrl)! } : require('../assets/images/mutton.jpg');
+  const imageSource = resolveImageUrl(parsed?.imageUrl) ? { uri: resolveImageUrl(parsed.imageUrl)! } : require('../assets/images/KrishvasKitchen_transparent.png');
 
   if (!parsed) return <View style={styles.center}><Text>Item missing</Text></View>;
 

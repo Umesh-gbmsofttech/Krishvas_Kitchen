@@ -170,7 +170,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               </Pressable>
             </Animated.View>
             <Pressable style={styles.headerMiniIcon} onPress={() => router.push('/profile')}>
-              <Image source={profileUri ? { uri: profileUri } : require('../assets/images/mutton.jpg')} style={styles.headerAvatar} />
+              <Image source={profileUri ? { uri: profileUri } : require('../assets/images/KrishvasKitchen_transparent.png')} style={styles.headerAvatar} />
             </Pressable>
           </View>
         </View>

@@ -4,7 +4,7 @@
     "slug": "KrishvasKitchen",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/app_icon.png",
+    "icon": "./assets/images/KrishvasKitchen_transparent.png",
     "scheme": "krishvaskitchen",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,8 +14,8 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/app_icon.png",
-        "monochromeImage": "./assets/images/app_icon.png"
+        "foregroundImage": "./assets/images/KrishvasKitchen_transparent.png",
+        "monochromeImage": "./assets/images/KrishvasKitchen_transparent.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -24,7 +24,7 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/app_icon.png"
+      "favicon": "./assets/images/KrishvasKitchen_transparent.png"
     },
     "plugins": [
       "expo-router",
@@ -34,7 +34,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/app_icon.png",
+          "image": "./assets/images/KrishvasKitchen_transparent.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",

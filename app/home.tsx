@@ -208,7 +208,7 @@ export default function HomeScreen() {
       )}
       <View style={styles.topRow}>
         <Pressable style={styles.avatarButton} onPress={() => router.push('/profile')}>
-          <Image source={profileUri ? { uri: profileUri } : require('../assets/images/mutton.jpg')} style={styles.avatar} />
+          <Image source={profileUri ? { uri: profileUri } : require('../assets/images/KrishvasKitchen_transparent.png')} style={styles.avatar} />
         </Pressable>
         <TextInput value={query} onChangeText={setQuery} placeholder="Search" style={styles.searchBelow} />
         <Pressable style={styles.searchBtn} onPress={() => router.push('/search')}>
@@ -289,7 +289,7 @@ export default function HomeScreen() {
       {visibleItems.map((item: any) => (
         <Pressable key={item.id} style={styles.itemCard} onPress={() => router.push({ pathname: '/item-details', params: { item: JSON.stringify(item) } })}>
           <Image
-            source={resolveImageUrl(item.imageUrl) ? { uri: resolveImageUrl(item.imageUrl)! } : require('../assets/images/mutton.jpg')}
+            source={resolveImageUrl(item.imageUrl) ? { uri: resolveImageUrl(item.imageUrl)! } : require('../assets/images/KrishvasKitchen_transparent.png')}
             style={styles.itemImage}
           />
           <View style={{ flex: 1 }}>

@@ -154,7 +154,7 @@ export default function DeliveryApprovalsScreen() {
             const imageUri = resolveImageUrl(driver?.user?.profileImageUrl || (driver?.user?.profileImageId ? `/api/images/${driver.user.profileImageId}` : null));
             return (
               <View key={`active-driver-${driver.id}`} style={styles.activeDriverCard}>
-                <Image source={imageUri ? { uri: imageUri } : require('../../assets/images/mutton.jpg')} style={styles.avatar} />
+                <Image source={imageUri ? { uri: imageUri } : require('../../assets/images/KrishvasKitchen_transparent.png')} style={styles.avatar} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.bold}>{driver?.user?.fullName || 'Driver'}</Text>
                   <Text style={styles.meta}>{driver?.user?.email || '-'}</Text>

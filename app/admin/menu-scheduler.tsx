@@ -177,7 +177,7 @@ export default function MenuSchedulerScreen() {
 
       const payloadItems = await Promise.all(
         items.map(async (item) => {
-          let imageUrl = item.existingImageUrl || 'mutton.jpg';
+          let imageUrl = item.existingImageUrl || 'KrishvasKitchen_transparent.png';
           if (item.imageUri) {
             const uploaded = await api.uploadImage({ uri: item.imageUri, name: `${item.name.replace(/\s+/g, '-').toLowerCase()}.jpg`, type: 'image/jpeg' }, 'MENU_ITEM', 0);
             imageUrl = uploaded.imageUrl;
@@ -365,7 +365,7 @@ export default function MenuSchedulerScreen() {
               <Text>{m.scheduleDate}</Text>
               {(m.items || []).map((it: any) => (
                 <View key={it.id} style={styles.itemCard}>
-                  <Image source={resolveImageUrl(it.imageUrl) ? { uri: resolveImageUrl(it.imageUrl)! } : require('../../assets/images/mutton.jpg')} style={styles.smallImage} />
+                  <Image source={resolveImageUrl(it.imageUrl) ? { uri: resolveImageUrl(it.imageUrl)! } : require('../../assets/images/KrishvasKitchen_transparent.png')} style={styles.smallImage} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.bold}>{it.name}</Text>
                     <Text numberOfLines={1}>{it.description}</Text>
@@ -395,7 +395,7 @@ export default function MenuSchedulerScreen() {
               </Pressable>
               {m.items.map((it: any) => (
                 <View key={it.id} style={styles.itemCard}>
-                  <Image source={resolveImageUrl(it.imageUrl) ? { uri: resolveImageUrl(it.imageUrl)! } : require('../../assets/images/mutton.jpg')} style={styles.smallImage} />
+                  <Image source={resolveImageUrl(it.imageUrl) ? { uri: resolveImageUrl(it.imageUrl)! } : require('../../assets/images/KrishvasKitchen_transparent.png')} style={styles.smallImage} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.bold}>{it.name}</Text>
                     <Text numberOfLines={1}>{it.description}</Text>
@@ -420,7 +420,7 @@ export default function MenuSchedulerScreen() {
             <>
               {m.items.map((it: any) => (
                 <View key={it.id} style={styles.itemCard}>
-                  <Image source={resolveImageUrl(it.imageUrl) ? { uri: resolveImageUrl(it.imageUrl)! } : require('../../assets/images/mutton.jpg')} style={styles.smallImage} />
+                  <Image source={resolveImageUrl(it.imageUrl) ? { uri: resolveImageUrl(it.imageUrl)! } : require('../../assets/images/KrishvasKitchen_transparent.png')} style={styles.smallImage} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.bold}>{it.name}</Text>
                     <Text numberOfLines={1}>{it.description}</Text>

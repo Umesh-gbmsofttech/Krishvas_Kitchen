@@ -11,7 +11,7 @@ export default function SplashScreenPage() {
   }, [router]);
 
   return (
-    <ImageBackground source={require('../assets/images/mutton.jpg')} style={styles.bg}>
+    <ImageBackground source={require('../assets/images/KrishvasKitchen_transparent.png')} style={styles.bg}>
       <View style={styles.overlay}>
         <Text style={styles.brand}>{`Krishva's Kitchen`}</Text>
         <Text style={styles.tag}>Freshly crafted meals, delivered warm.</Text>

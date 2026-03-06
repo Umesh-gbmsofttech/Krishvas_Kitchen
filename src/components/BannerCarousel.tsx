@@ -43,7 +43,7 @@ export const BannerCarousel = ({ banners }: { banners: any[] }) => {
           const uri = resolveImageUrl(item.imageUrl);
           return (
             <View style={styles.card}>
-              <Image source={uri ? { uri } : require('../../assets/images/mutton.jpg')} style={styles.image} />
+              <Image source={uri ? { uri } : require('../../assets/images/KrishvasKitchen_transparent.png')} style={styles.image} />
               <View style={styles.overlay}>
                 <Text style={styles.title}>{item.title}</Text>
                 {item.actionLabel ? <Text style={styles.action}>{item.actionLabel}</Text> : null}
@@ -90,4 +90,3 @@ const styles = StyleSheet.create({
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#D0D0D0' },
   dotActive: { width: 18, backgroundColor: '#FF6A2B' },
 });
-

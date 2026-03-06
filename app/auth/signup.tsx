@@ -105,7 +105,7 @@ export default function SignupScreen() {
       <Text style={styles.title}>Create Account</Text>
 
       <Pressable style={styles.imagePicker} onPress={pickProfileImage}>
-        <Image source={profileImageUri ? { uri: profileImageUri } : require('../../assets/images/mutton.jpg')} style={styles.imagePreview} />
+        <Image source={profileImageUri ? { uri: profileImageUri } : require('../../assets/images/KrishvasKitchen_transparent.png')} style={styles.imagePreview} />
         <Text style={styles.imageLabel}>Profile Image</Text>
       </Pressable>
 
